@@ -160,7 +160,10 @@ import {
   applyStreamQualityAdvisorTarget,
   canApplyStreamQualityAdvisorTargetLive
 } from "../domain/streamQualityAdvisor";
-import { createStreamQualityAutomationDecision } from "../domain/streamQualityAutomation";
+import {
+  createStreamQualityAutomationDecision,
+  deferNativeOwnedBitrateDecision
+} from "../domain/streamQualityAutomation";
 import {
   appendStreamAudioLevelSample,
   createStreamAudioLevelSample,
@@ -1383,8 +1386,8 @@ export const MobileApp = () => {
     ]
   );
   const qualityAutomationDecision = useMemo(
-    () =>
-      createStreamQualityAutomationDecision({
+    () => {
+      const decision = createStreamQualityAutomationDecision({
         advisor: qualityAutomationDiagnostics.qualityAdvisor,
         streamStatus: snapshot.state.status,
         elapsedSeconds: snapshot.health.elapsedSeconds,
@@ -1399,8 +1402,19 @@ export const MobileApp = () => {
               }
             : { videoBitrate: true, audioBitrate: false, fps: false }
         )
-      }),
-    [profile, qualityAutomationDiagnostics.qualityAdvisor, snapshot.health.elapsedSeconds, snapshot.state.status]
+      });
+      return deferNativeOwnedBitrateDecision(
+        decision,
+        snapshot.nativeRuntime?.publisher.bitrateAdaptation?.controlOwner === "native"
+      );
+    },
+    [
+      profile,
+      qualityAutomationDiagnostics.qualityAdvisor,
+      snapshot.health.elapsedSeconds,
+      snapshot.nativeRuntime?.publisher.bitrateAdaptation?.controlOwner,
+      snapshot.state.status
+    ]
   );
 
   useStreamAutoRecovery({

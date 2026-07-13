@@ -1,3 +1,5 @@
+import { redactSensitiveText } from "./sensitiveText";
+
 export type NativeRuntimeCompositionStatus = "unknown" | "screen-only" | "applied" | "pending" | "failed";
 export type NativeRuntimePlatform = "ios" | "android";
 export type NativeRuntimeThermalState = "unknown" | "nominal" | "fair" | "serious" | "critical";
@@ -174,6 +176,7 @@ export interface NativeRuntimeComposition {
 }
 
 export type NativeRuntimeBitrateAdaptationStatus = "unknown" | "steady" | "reduced" | "restored" | "failed";
+export type NativeRuntimeBitrateAdaptationControlOwner = "none" | "native";
 
 export interface NativeRuntimeBitrateAdaptation {
   status: NativeRuntimeBitrateAdaptationStatus;
@@ -184,6 +187,41 @@ export interface NativeRuntimeBitrateAdaptation {
   updateCount: number;
   failureCount: number;
   lastUpdatedAt: number;
+  controlOwner?: NativeRuntimeBitrateAdaptationControlOwner;
+  controllerState?: string;
+  baselineTargetKbps?: number;
+  effectiveTargetKbps?: number;
+  floorTargetKbps?: number;
+  pendingTargetKbps?: number;
+  automaticReductionCount?: number;
+  automaticRestorationCount?: number;
+  pressureSampleCount?: number;
+  healthySampleCount?: number;
+  cooldownRemainingMs?: number;
+  recoveryEligibleInMs?: number;
+  publishGeneration?: number;
+  cumulativeReconnectCount?: number;
+  lastDecisionAt?: number;
+  lastDecisionReason?: string;
+}
+
+export interface NormalizedNativeRuntimeBitrateAdaptation extends NativeRuntimeBitrateAdaptation {
+  controlOwner: NativeRuntimeBitrateAdaptationControlOwner;
+  controllerState: string;
+  baselineTargetKbps: number;
+  effectiveTargetKbps: number;
+  floorTargetKbps: number;
+  pendingTargetKbps: number;
+  automaticReductionCount: number;
+  automaticRestorationCount: number;
+  pressureSampleCount: number;
+  healthySampleCount: number;
+  cooldownRemainingMs: number;
+  recoveryEligibleInMs: number;
+  publishGeneration: number;
+  cumulativeReconnectCount: number;
+  lastDecisionAt: number;
+  lastDecisionReason: string;
 }
 
 const nativeBitrateAdaptationStatuses = new Set<NativeRuntimeBitrateAdaptationStatus>([
@@ -193,21 +231,63 @@ const nativeBitrateAdaptationStatuses = new Set<NativeRuntimeBitrateAdaptationSt
   "restored",
   "failed"
 ]);
+const nativeBitrateAdaptationControlOwners = new Set<NativeRuntimeBitrateAdaptationControlOwner>([
+  "none",
+  "native"
+]);
 
 export const normalizeNativeRuntimeBitrateAdaptation = (
   value: Partial<NativeRuntimeBitrateAdaptation> | null | undefined
-): NativeRuntimeBitrateAdaptation => ({
+): NormalizedNativeRuntimeBitrateAdaptation => ({
   status: nativeBitrateAdaptationStatuses.has(value?.status as NativeRuntimeBitrateAdaptationStatus)
     ? (value?.status as NativeRuntimeBitrateAdaptationStatus)
     : "unknown",
-  initialTargetKbps: Math.max(0, Math.round(normalizeFiniteNumber(value?.initialTargetKbps, 0))),
-  requestedTargetKbps: Math.max(0, Math.round(normalizeFiniteNumber(value?.requestedTargetKbps, 0))),
-  appliedTargetKbps: Math.max(0, Math.round(normalizeFiniteNumber(value?.appliedTargetKbps, 0))),
-  minimumAppliedKbps: Math.max(0, Math.round(normalizeFiniteNumber(value?.minimumAppliedKbps, 0))),
-  updateCount: Math.max(0, Math.round(normalizeFiniteNumber(value?.updateCount, 0))),
-  failureCount: Math.max(0, Math.round(normalizeFiniteNumber(value?.failureCount, 0))),
-  lastUpdatedAt: Math.max(0, Math.round(normalizeFiniteNumber(value?.lastUpdatedAt, 0)))
+  initialTargetKbps: normalizeNativeRuntimeNonnegativeInteger(value?.initialTargetKbps),
+  requestedTargetKbps: normalizeNativeRuntimeNonnegativeInteger(value?.requestedTargetKbps),
+  appliedTargetKbps: normalizeNativeRuntimeNonnegativeInteger(value?.appliedTargetKbps),
+  minimumAppliedKbps: normalizeNativeRuntimeNonnegativeInteger(value?.minimumAppliedKbps),
+  updateCount: normalizeNativeRuntimeNonnegativeInteger(value?.updateCount),
+  failureCount: normalizeNativeRuntimeNonnegativeInteger(value?.failureCount),
+  lastUpdatedAt: normalizeNativeRuntimeNonnegativeInteger(value?.lastUpdatedAt),
+  controlOwner: nativeBitrateAdaptationControlOwners.has(
+    value?.controlOwner as NativeRuntimeBitrateAdaptationControlOwner
+  )
+    ? (value?.controlOwner as NativeRuntimeBitrateAdaptationControlOwner)
+    : "none",
+  controllerState: normalizeNativeRuntimeBitrateText(value?.controllerState, "idle", 64),
+  baselineTargetKbps: normalizeNativeRuntimeNonnegativeInteger(value?.baselineTargetKbps),
+  effectiveTargetKbps: normalizeNativeRuntimeNonnegativeInteger(value?.effectiveTargetKbps),
+  floorTargetKbps: normalizeNativeRuntimeNonnegativeInteger(value?.floorTargetKbps),
+  pendingTargetKbps: normalizeNativeRuntimeNonnegativeInteger(value?.pendingTargetKbps),
+  automaticReductionCount: normalizeNativeRuntimeNonnegativeInteger(value?.automaticReductionCount),
+  automaticRestorationCount: normalizeNativeRuntimeNonnegativeInteger(value?.automaticRestorationCount),
+  pressureSampleCount: normalizeNativeRuntimeNonnegativeInteger(value?.pressureSampleCount),
+  healthySampleCount: normalizeNativeRuntimeNonnegativeInteger(value?.healthySampleCount),
+  cooldownRemainingMs: normalizeNativeRuntimeNonnegativeInteger(value?.cooldownRemainingMs),
+  recoveryEligibleInMs: normalizeNativeRuntimeNonnegativeInteger(value?.recoveryEligibleInMs),
+  publishGeneration: normalizeNativeRuntimeNonnegativeInteger(value?.publishGeneration),
+  cumulativeReconnectCount: normalizeNativeRuntimeNonnegativeInteger(value?.cumulativeReconnectCount),
+  lastDecisionAt: normalizeNativeRuntimeNonnegativeInteger(value?.lastDecisionAt),
+  lastDecisionReason: normalizeNativeRuntimeBitrateText(value?.lastDecisionReason, "", 160)
 });
+
+const normalizeNativeRuntimeNonnegativeInteger = (value: unknown): number =>
+  Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.round(normalizeFiniteNumber(value, 0))));
+
+const normalizeNativeRuntimeBitrateText = (
+  value: unknown,
+  fallback: string,
+  maxLength: number
+): string => {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+  const normalized = value.replace(/[\u0000-\u001f\u007f-\u009f\s]+/g, " ").trim();
+  if (!normalized) {
+    return fallback;
+  }
+  return redactSensitiveText(normalized.slice(0, maxLength * 4)).slice(0, maxLength).trim() || fallback;
+};
 
 export interface NativeRuntimePublisher {
   state: string;

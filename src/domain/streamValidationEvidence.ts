@@ -28,6 +28,9 @@ export type StreamValidationDevicePlatform = "ios" | "android";
 export type StreamValidationRunResult = "pass" | "warn" | "fail";
 export type StreamValidationFeatureStatus = "pass" | "warn" | "fail" | "pending";
 
+const nativeRuntimeEvidenceMaxAgeMs = 30 * 60 * 1_000;
+const nativeRuntimeEvidenceFutureSkewMs = 60 * 1_000;
+
 export interface StreamValidationFaceTrackingSummary {
   status: StreamDiagnostics["faceTracking"]["status"];
   enabled: boolean;
@@ -163,6 +166,9 @@ export interface StreamValidationRun {
   sessionOutcome: NonNullable<StreamDiagnostics["session"]["lastSummary"]>["outcome"] | null;
   healthSampleCount: number;
   completedSessionCount: number;
+  nativeRuntimeSessionId: string | null;
+  nativeRuntimeSessionStartedAt: string | null;
+  nativeRuntimeSessionEndedAt: string | null;
   nativeRuntime: StreamSessionNativeRuntimeSummary | null;
   monitorHold: StreamValidationMonitorHoldSummary | null;
   faceTracking: StreamValidationFaceTrackingSummary | null;
@@ -218,6 +224,9 @@ export interface StreamValidationEvidenceRunManifestItem {
   transport: string;
   result: StreamValidationRunResult;
   nativeRuntimePlatform: StreamSessionNativeRuntimeSummary["platform"] | null;
+  nativeRuntimeSessionId: string | null;
+  nativeRuntimeSessionStartedAt: string | null;
+  nativeRuntimeSessionEndedAt: string | null;
   nativeRuntimeStatus: StreamSessionNativeRuntimeSummary["status"] | null;
   nativeRuntimeContinuityStatus: StreamSessionNativeRuntimeSummary["continuityStatus"] | null;
   nativeRuntimeVideoStallCount: number;
@@ -241,6 +250,22 @@ export interface StreamValidationEvidenceRunManifestItem {
   nativeRuntimeQueuedItems: number;
   nativeRuntimeCacheSize: number;
   nativeRuntimeBitrateAdaptationStatus: StreamSessionNativeRuntimeSummary["bitrateAdaptationStatus"] | null;
+  nativeRuntimeControlOwner: StreamSessionNativeRuntimeSummary["controlOwner"] | null;
+  nativeRuntimeControllerState: string | null;
+  nativeRuntimeBaselineTargetKbps: number;
+  nativeRuntimeEffectiveTargetKbps: number;
+  nativeRuntimeFloorTargetKbps: number;
+  nativeRuntimePendingTargetKbps: number;
+  nativeRuntimeAutomaticReductionCount: number;
+  nativeRuntimeAutomaticRestorationCount: number;
+  nativeRuntimePressureSampleCount: number;
+  nativeRuntimeHealthySampleCount: number;
+  nativeRuntimeCooldownRemainingMs: number;
+  nativeRuntimeRecoveryEligibleInMs: number;
+  nativeRuntimePublishGeneration: number;
+  nativeRuntimeCumulativeReconnectCount: number;
+  nativeRuntimeLastDecisionAt: string;
+  nativeRuntimeLastDecisionReason: string;
   nativeRuntimeInitialVideoBitrateKbps: number;
   nativeRuntimeRequestedVideoBitrateKbps: number;
   nativeRuntimeAppliedVideoBitrateKbps: number;
@@ -572,7 +597,9 @@ export const createStreamValidationNativeRuntimePreview = (
   diagnostics: StreamDiagnostics,
   expectedPlatform: StreamValidationDevicePlatform
 ): StreamValidationNativeRuntimePreview => {
-  const nativeRuntime = createValidationNativeRuntimeSummary(diagnostics);
+  const nativeRuntime =
+    createNativeRuntimeSessionSummary(diagnostics.nativeRuntime) ??
+    normalizeNativeRuntimeSessionSummary(diagnostics.session.lastSummary?.nativeRuntime);
   if (!nativeRuntime) {
     return {
       status: "pending",
@@ -661,12 +688,13 @@ export const createStreamValidationRun = ({
   const sanitizedAppBuild = sanitizeStoredText(appBuild, secrets) || "-";
   const sanitizedNetworkProfile = sanitizeStoredText(networkProfile, secrets) || "private test";
   const physicalDevice = createPhysicalDeviceEvidence(devicePlatform, sanitizedDeviceName, sanitizedOsVersion, secrets);
-  const nativeRuntime = createValidationNativeRuntimeSummary(diagnostics);
+  const nativeRuntimeEvidence = createValidationNativeRuntimeEvidence(diagnostics, now);
+  const nativeRuntime = nativeRuntimeEvidence?.runtime ?? null;
   const monitorHold = createMonitorHoldValidationSummary(diagnostics, secrets);
   const faceTracking = createFaceTrackingValidationSummary(diagnostics.faceTracking, secrets);
   const audio = createAudioValidationSummary(diagnostics, audioMonitorTuning, secrets);
   const chatReadout = createChatReadoutValidationSummary(diagnostics, secrets);
-  const qualityAutomation = createQualityAutomationValidationSummary(diagnostics, secrets);
+  const qualityAutomation = createQualityAutomationValidationSummary(diagnostics, secrets, now, nativeRuntimeEvidence);
   const platformPublishing = diagnostics.platformPublishing;
   const platformPublishingFreshness = createPlatformPublishingValidationFreshness(diagnostics, now);
   const effectiveResult = createEffectiveValidationResult(
@@ -716,6 +744,9 @@ export const createStreamValidationRun = ({
     sessionOutcome: diagnostics.session.lastSummary?.outcome ?? null,
     healthSampleCount: diagnostics.history.sampleCount,
     completedSessionCount: diagnostics.session.summaries.length,
+    nativeRuntimeSessionId: nativeRuntimeEvidence?.sessionId ?? null,
+    nativeRuntimeSessionStartedAt: nativeRuntimeEvidence?.startedAt ?? null,
+    nativeRuntimeSessionEndedAt: nativeRuntimeEvidence?.endedAt ?? null,
     nativeRuntime,
     monitorHold,
     faceTracking,
@@ -1231,6 +1262,9 @@ const normalizeStreamValidationRun = (value: unknown): StreamValidationRun | nul
     sessionOutcome,
     healthSampleCount: normalizeCount(value.healthSampleCount),
     completedSessionCount: normalizeCount(value.completedSessionCount),
+    nativeRuntimeSessionId: normalizeText(value.nativeRuntimeSessionId, "") || null,
+    nativeRuntimeSessionStartedAt: normalizeDateString(value.nativeRuntimeSessionStartedAt),
+    nativeRuntimeSessionEndedAt: normalizeDateString(value.nativeRuntimeSessionEndedAt),
     nativeRuntime,
     monitorHold,
     faceTracking,
@@ -1648,16 +1682,64 @@ const createNativeRuntimePreviewRecommendation = (
   return nativeRuntime.recommendation;
 };
 
-const createValidationNativeRuntimeSummary = (
-  diagnostics: StreamDiagnostics
-): StreamSessionNativeRuntimeSummary | null => {
-  const nativeRuntime =
-    createNativeRuntimeSessionSummary(diagnostics.nativeRuntime) ??
-    normalizeNativeRuntimeSessionSummary(diagnostics.session.lastSummary?.nativeRuntime);
-  if (!nativeRuntime) {
+interface ValidationNativeRuntimeEvidence {
+  runtime: StreamSessionNativeRuntimeSummary;
+  sessionId: string;
+  startedAt: string;
+  endedAt: string;
+  retainedSummary: StreamDiagnostics["session"]["lastSummary"];
+}
+
+const createValidationNativeRuntimeEvidence = (
+  diagnostics: StreamDiagnostics,
+  now: Date
+): ValidationNativeRuntimeEvidence | null => {
+  const retainedSummary = isRecentSessionSummary(diagnostics.session.lastSummary, now)
+    ? diagnostics.session.lastSummary
+    : null;
+  const retainedRuntime = normalizeNativeRuntimeSessionSummary(retainedSummary?.nativeRuntime);
+  const streamIsActive = diagnostics.telemetry.streamStatus === "live" || diagnostics.telemetry.streamStatus === "reconnecting";
+  if (!streamIsActive && retainedSummary && retainedRuntime) {
+    return {
+      runtime: alignNativeRuntimeWithComposition(retainedRuntime, diagnostics.nativeComposition),
+      sessionId: retainedSummary.id,
+      startedAt: retainedSummary.startedAt,
+      endedAt: retainedSummary.endedAt,
+      retainedSummary
+    };
+  }
+
+  const currentTelemetry = diagnostics.nativeRuntime;
+  const currentRuntime = isRecentEpochMilliseconds(currentTelemetry?.updatedAt, now)
+    ? createNativeRuntimeSessionSummary(currentTelemetry)
+    : null;
+  if (currentTelemetry && currentRuntime) {
+    const endedAtMs = Math.min(now.getTime() + nativeRuntimeEvidenceFutureSkewMs, currentTelemetry.updatedAt);
+    const startedAtMs = endedAtMs - Math.max(0, currentTelemetry.elapsedSeconds) * 1_000;
+    const startedAt = new Date(startedAtMs).toISOString();
+    const endedAt = new Date(endedAtMs).toISOString();
+    return {
+      runtime: alignNativeRuntimeWithComposition(currentRuntime, diagnostics.nativeComposition),
+      sessionId: `active:${currentRuntime.platform}:${startedAt}`,
+      startedAt,
+      endedAt,
+      retainedSummary: null
+    };
+  }
+
+  if (streamIsActive) {
     return null;
   }
-  return alignNativeRuntimeWithComposition(nativeRuntime, diagnostics.nativeComposition);
+  if (!retainedSummary || !retainedRuntime) {
+    return null;
+  }
+  return {
+    runtime: alignNativeRuntimeWithComposition(retainedRuntime, diagnostics.nativeComposition),
+    sessionId: retainedSummary.id,
+    startedAt: retainedSummary.startedAt,
+    endedAt: retainedSummary.endedAt,
+    retainedSummary
+  };
 };
 
 const alignNativeRuntimeWithComposition = (
@@ -2827,14 +2909,43 @@ const createChatReadoutValidationSummary = (
 
 const createQualityAutomationValidationSummary = (
   diagnostics: StreamDiagnostics,
-  secrets: string[]
+  secrets: string[],
+  now: Date,
+  nativeRuntimeEvidence: ValidationNativeRuntimeEvidence | null
 ): StreamValidationQualityAutomationSummary | null => {
-  const currentEvents = summarizeQualityAutomationEvents(diagnostics.session.events);
-  const lastSummary = diagnostics.session.lastSummary;
-  const eventCount = Math.max(currentEvents.eventCount, lastSummary?.qualityEventCount ?? 0);
-  const liveUpdateCount = Math.max(currentEvents.liveUpdateCount, lastSummary?.qualityLiveUpdateCount ?? 0);
-  const nextTargetCount = Math.max(currentEvents.nextTargetCount, lastSummary?.qualityNextTargetCount ?? 0);
-  const failureCount = Math.max(currentEvents.failureCount, lastSummary?.qualityUpdateFailureCount ?? 0);
+  const streamIsActive = diagnostics.telemetry.streamStatus === "live" || diagnostics.telemetry.streamStatus === "reconnecting";
+  if (streamIsActive && !nativeRuntimeEvidence) {
+    return null;
+  }
+  const retainedSummary = nativeRuntimeEvidence
+    ? nativeRuntimeEvidence.retainedSummary
+    : !streamIsActive && isRecentSessionSummary(diagnostics.session.lastSummary, now)
+      ? diagnostics.session.lastSummary
+      : null;
+  const currentEvents = summarizeQualityAutomationEvents(
+    filterQualityAutomationEvents(diagnostics.session.events, now, nativeRuntimeEvidence, retainedSummary)
+  );
+  const nativeRuntime = nativeRuntimeEvidence?.runtime ?? null;
+  const nativeAutomaticUpdateCount =
+    (nativeRuntime?.automaticReductionCount ?? 0) + (nativeRuntime?.automaticRestorationCount ?? 0);
+  const nativeFailureCount = nativeRuntime?.liveVideoBitrateUpdateFailureCount ?? 0;
+  const nativeOwned = nativeRuntime?.controlOwner === "native";
+  const liveUpdateCount = Math.max(
+    currentEvents.liveUpdateCount,
+    retainedSummary?.qualityLiveUpdateCount ?? 0,
+    nativeAutomaticUpdateCount
+  );
+  const nextTargetCount = Math.max(currentEvents.nextTargetCount, retainedSummary?.qualityNextTargetCount ?? 0);
+  const failureCount = Math.max(
+    currentEvents.failureCount,
+    retainedSummary?.qualityUpdateFailureCount ?? 0,
+    nativeFailureCount
+  );
+  const eventCount = Math.max(
+    currentEvents.eventCount,
+    retainedSummary?.qualityEventCount ?? 0,
+    nativeAutomaticUpdateCount + nativeFailureCount
+  );
 
   if (eventCount === 0 && liveUpdateCount === 0 && nextTargetCount === 0 && failureCount === 0) {
     return null;
@@ -2842,12 +2953,16 @@ const createQualityAutomationValidationSummary = (
 
   const status: StreamValidationFeatureStatus =
     failureCount > 0 ? "fail" : liveUpdateCount > 0 || nextTargetCount > 0 ? "pass" : "warn";
-  const summary = `Quality automation retained ${eventCount} event${eventCount === 1 ? "" : "s"}: ${liveUpdateCount} live update${liveUpdateCount === 1 ? "" : "s"}, ${nextTargetCount} next-start target${nextTargetCount === 1 ? "" : "s"}, ${failureCount} failed.`;
+  const summary = `${nativeOwned ? "Native-owned quality automation" : "Quality automation"} retained ${eventCount} event${eventCount === 1 ? "" : "s"}: ${liveUpdateCount} live update${liveUpdateCount === 1 ? "" : "s"}, ${nextTargetCount} next-start target${nextTargetCount === 1 ? "" : "s"}, ${failureCount} failed.`;
   const recommendation =
     failureCount > 0
-      ? "Repeat validation after fixing native live quality updates."
+      ? nativeOwned
+        ? "Repeat validation after fixing failed updates from the native-owned bitrate controller."
+        : "Repeat validation after fixing native live quality updates."
       : liveUpdateCount > 0
-        ? "Keep this run as evidence that live bitrate/FPS relief can apply during a stream."
+        ? nativeOwned
+          ? "Keep this run as evidence that the native-owned bitrate controller applies automatic live bitrate changes."
+          : "Keep this run as evidence that live bitrate/FPS relief can apply during a stream."
         : nextTargetCount > 0
           ? "Keep this run as evidence that the next-start quality fallback was armed and applied."
           : "Repeat validation under a controlled weak-network condition to prove automatic quality relief.";
@@ -2873,6 +2988,47 @@ const summarizeQualityAutomationEvents = (
     nextTargetCount: qualityEvents.filter((event) => event.title === "Auto quality target lowered").length,
     failureCount: qualityEvents.filter((event) => event.severity === "fail" || event.title === "Live quality update failed").length
   };
+};
+
+const filterQualityAutomationEvents = (
+  events: StreamDiagnostics["session"]["events"],
+  now: Date,
+  nativeRuntimeEvidence: ValidationNativeRuntimeEvidence | null,
+  retainedSummary: StreamDiagnostics["session"]["lastSummary"]
+): StreamDiagnostics["session"]["events"] => {
+  const startMs = nativeRuntimeEvidence
+    ? Date.parse(nativeRuntimeEvidence.startedAt)
+    : retainedSummary
+      ? Date.parse(retainedSummary.startedAt)
+    : now.getTime() - nativeRuntimeEvidenceMaxAgeMs;
+  const endMs = nativeRuntimeEvidence
+    ? Date.parse(nativeRuntimeEvidence.endedAt)
+    : retainedSummary
+      ? Date.parse(retainedSummary.endedAt)
+    : now.getTime() + nativeRuntimeEvidenceFutureSkewMs;
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return [];
+  }
+  return events.filter((event) => {
+    const eventAtMs = Date.parse(event.at);
+    return Number.isFinite(eventAtMs) && eventAtMs >= startMs && eventAtMs <= endMs;
+  });
+};
+
+const isRecentSessionSummary = (
+  summary: StreamDiagnostics["session"]["lastSummary"],
+  now: Date
+): boolean => Boolean(summary && isRecentIsoDate(summary.endedAt, now));
+
+const isRecentIsoDate = (value: unknown, now: Date): boolean =>
+  typeof value === "string" && isRecentEpochMilliseconds(Date.parse(value), now);
+
+const isRecentEpochMilliseconds = (value: unknown, now: Date): boolean => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return false;
+  }
+  const ageMs = now.getTime() - value;
+  return ageMs >= -nativeRuntimeEvidenceFutureSkewMs && ageMs <= nativeRuntimeEvidenceMaxAgeMs;
 };
 
 const findRunbookItem = (
@@ -2963,6 +3119,9 @@ const createEvidenceRunManifestItem = (
     transport: run.transport,
     result: run.result,
     nativeRuntimePlatform: run.nativeRuntime?.platform ?? null,
+    nativeRuntimeSessionId: run.nativeRuntimeSessionId,
+    nativeRuntimeSessionStartedAt: run.nativeRuntimeSessionStartedAt,
+    nativeRuntimeSessionEndedAt: run.nativeRuntimeSessionEndedAt,
     nativeRuntimeStatus: run.nativeRuntime?.status ?? null,
     nativeRuntimeContinuityStatus: run.nativeRuntime?.continuityStatus ?? null,
     nativeRuntimeVideoStallCount: run.nativeRuntime?.videoStallCount ?? 0,
@@ -2987,6 +3146,22 @@ const createEvidenceRunManifestItem = (
     nativeRuntimeQueuedItems: run.nativeRuntime?.queuedItems ?? 0,
     nativeRuntimeCacheSize: run.nativeRuntime?.cacheSize ?? 0,
     nativeRuntimeBitrateAdaptationStatus: run.nativeRuntime?.bitrateAdaptationStatus ?? null,
+    nativeRuntimeControlOwner: run.nativeRuntime?.controlOwner ?? null,
+    nativeRuntimeControllerState: run.nativeRuntime?.controllerState ?? null,
+    nativeRuntimeBaselineTargetKbps: run.nativeRuntime?.baselineTargetKbps ?? 0,
+    nativeRuntimeEffectiveTargetKbps: run.nativeRuntime?.effectiveTargetKbps ?? 0,
+    nativeRuntimeFloorTargetKbps: run.nativeRuntime?.floorTargetKbps ?? 0,
+    nativeRuntimePendingTargetKbps: run.nativeRuntime?.pendingTargetKbps ?? 0,
+    nativeRuntimeAutomaticReductionCount: run.nativeRuntime?.automaticReductionCount ?? 0,
+    nativeRuntimeAutomaticRestorationCount: run.nativeRuntime?.automaticRestorationCount ?? 0,
+    nativeRuntimePressureSampleCount: run.nativeRuntime?.pressureSampleCount ?? 0,
+    nativeRuntimeHealthySampleCount: run.nativeRuntime?.healthySampleCount ?? 0,
+    nativeRuntimeCooldownRemainingMs: run.nativeRuntime?.cooldownRemainingMs ?? 0,
+    nativeRuntimeRecoveryEligibleInMs: run.nativeRuntime?.recoveryEligibleInMs ?? 0,
+    nativeRuntimePublishGeneration: run.nativeRuntime?.publishGeneration ?? 0,
+    nativeRuntimeCumulativeReconnectCount: run.nativeRuntime?.cumulativeReconnectCount ?? 0,
+    nativeRuntimeLastDecisionAt: normalizeEpochMillisecondsDate(run.nativeRuntime?.lastDecisionAt),
+    nativeRuntimeLastDecisionReason: run.nativeRuntime?.lastDecisionReason ?? "",
     nativeRuntimeInitialVideoBitrateKbps: run.nativeRuntime?.initialVideoBitrateKbps ?? 0,
     nativeRuntimeRequestedVideoBitrateKbps: run.nativeRuntime?.requestedVideoBitrateKbps ?? 0,
     nativeRuntimeAppliedVideoBitrateKbps: run.nativeRuntime?.appliedVideoBitrateKbps ?? 0,

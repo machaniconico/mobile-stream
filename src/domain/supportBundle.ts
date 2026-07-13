@@ -35,7 +35,7 @@ export interface SupportBundle {
   app: {
     name: "MobileLiveCaster";
     reportVersion: 1;
-    bundleVersion: 57;
+    bundleVersion: 58;
   };
   summary: {
     status: StreamDiagnostics["status"];
@@ -718,7 +718,7 @@ export const createSupportBundle = ({
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 57
+      bundleVersion: 58
     },
     summary: {
       status: diagnostics.status,
@@ -1720,7 +1720,7 @@ const formatValidationEvidenceRunManifest = (
         `hold ${run.monitorHoldStatus ?? "-"} samples ${run.monitorHoldSampleCount} duration ${run.monitorHoldDurationSeconds}s stability ${run.monitorHoldStability ?? "-"} bitrate ${run.monitorHoldAverageBitrateKbps}/${run.monitorHoldMinimumBitrateKbps} fps ${run.monitorHoldAverageFps}/${run.monitorHoldMinimumFps} drops ${run.monitorHoldDroppedFrameIncrease} reconnects ${run.monitorHoldObservedReconnectAttempts}`,
         `audio ${run.audioStatus ?? "-"} route ${run.audioOutputRoute ?? "-"} native ${run.audioNativeMonitorRoute || "-"} match ${run.audioNativeMonitorRouteMatchesOutput ? "yes" : "no"} monitor frames ${run.audioNativeMonitorWrittenFrames}/${run.audioNativeMonitorDroppedFrames} buffers ${run.audioNativeMonitorWrittenBuffers}/${run.audioNativeMonitorDroppedBuffers} headphones ${run.audioNativeMonitorHeadphonesConnected ? "yes" : "no"} latency ${run.audioMonitorLatencyMs === null ? "-" : `${run.audioMonitorLatencyMs}ms`}/${run.audioMonitorLatencyBudgetMs}ms ${run.audioMonitorLatencyStatus ?? "-"} source ${run.audioMonitorLatencySource || "-"} tuning ${run.audioMonitorTuningNote || "-"} bluetooth ${run.audioBluetoothRoute ? "yes" : "no"} reviewed ${run.audioBluetoothTuningReviewed ? "yes" : "no"}`,
         `chat ${run.chatReadoutStatus ?? "-"} platform ${run.chatReadoutPlatformChatEnabled ? "on" : "off"} reader ${run.chatReadoutReaderEnabled ? "on" : "off"} ${run.chatReadoutConnectionPhase || "-"} ${run.chatReadoutConnectionLabel || "-"} spoken ${run.chatReadoutSpokenMessageCount} failed ${run.chatReadoutSpeechFailureCount}`,
-        `quality ${run.qualityAutomationStatus ?? "-"} live ${run.qualityAutomationLiveUpdateCount} next ${run.qualityAutomationNextTargetCount} failed ${run.qualityAutomationFailureCount}`,
+        `quality ${run.qualityAutomationStatus ?? "-"} live ${run.qualityAutomationLiveUpdateCount} next ${run.qualityAutomationNextTargetCount} failed ${run.qualityAutomationFailureCount} native owner ${run.nativeRuntimeControlOwner ?? "none"} state ${run.nativeRuntimeControllerState ?? "-"} baseline/effective/floor ${run.nativeRuntimeBaselineTargetKbps ?? 0}/${run.nativeRuntimeEffectiveTargetKbps ?? 0}/${run.nativeRuntimeFloorTargetKbps ?? 0} kbps pending ${run.nativeRuntimePendingTargetKbps ?? 0} reductions ${run.nativeRuntimeAutomaticReductionCount ?? 0} restorations ${run.nativeRuntimeAutomaticRestorationCount ?? 0} decision ${run.nativeRuntimeLastDecisionAt || "-"}`,
         `dashboard ${run.platformPublishingPlatform ?? "-"} ${run.platformPublishingStatus ?? "-"}/${run.platformPublishingFreshnessStatus ?? "-"} checked ${run.platformPublishingCheckedAt || "-"} age ${run.platformPublishingFreshnessAgeMinutes ?? "-"}m observed ${run.platformPublishingObservedAgeMinutes ?? "-"}m youtube broadcast ${run.platformPublishingYoutubeHasBroadcastId ? "yes" : "no"} ${run.platformPublishingYoutubeBroadcastStatus || "-"} bound ${run.platformPublishingYoutubeBoundStreamId || "-"} privacy ${run.platformPublishingYoutubeBroadcastPrivacyStatus || "-"} stream ${run.platformPublishingYoutubeHasStreamId ? "yes" : "no"} ${run.platformPublishingYoutubeStreamStatus || "-"} health ${run.platformPublishingYoutubeHealthStatus || "-"} issues ${run.platformPublishingYoutubeHealthIssueCount} twitch ${run.platformPublishingTwitchLiveStatus || "-"} started ${run.platformPublishingTwitchStartedAt || "-"} category ${run.platformPublishingTwitchHasCategoryId ? "yes" : "no"} ${run.platformPublishingTwitchChannelCategory || "-"} (${run.platformPublishingTwitchChannelCategoryId || "-"}) title ${run.platformPublishingTwitchChannelTitle || "-"} language ${run.platformPublishingTwitchChannelLanguage || "-"} viewers ${run.platformPublishingTwitchViewerCount}`
       ].join(" ");
     })

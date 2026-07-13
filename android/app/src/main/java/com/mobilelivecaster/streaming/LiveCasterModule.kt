@@ -240,7 +240,23 @@ data class NativeRuntimeBitrateAdaptation(
     val minimumAppliedKbps: Int = 0,
     val updateCount: Long = 0,
     val failureCount: Long = 0,
-    val lastUpdatedAt: Long = 0
+    val lastUpdatedAt: Long = 0,
+    val controlOwner: String = "none",
+    val controllerState: String = "idle",
+    val baselineTargetKbps: Int = 0,
+    val effectiveTargetKbps: Int = 0,
+    val floorTargetKbps: Int = 0,
+    val pendingTargetKbps: Int = 0,
+    val automaticReductionCount: Long = 0,
+    val automaticRestorationCount: Long = 0,
+    val pressureSampleCount: Int = 0,
+    val healthySampleCount: Int = 0,
+    val cooldownRemainingMs: Long = 0,
+    val recoveryEligibleInMs: Long = 0,
+    val publishGeneration: Int = 0,
+    val cumulativeReconnectCount: Int = 0,
+    val lastDecisionAt: Long = 0,
+    val lastDecisionReason: String = ""
 ) {
     fun asWritableMap(): WritableMap = Arguments.createMap().apply {
         putString("status", status)
@@ -251,6 +267,22 @@ data class NativeRuntimeBitrateAdaptation(
         putDouble("updateCount", updateCount.toDouble())
         putDouble("failureCount", failureCount.toDouble())
         putDouble("lastUpdatedAt", lastUpdatedAt.toDouble())
+        putString("controlOwner", controlOwner)
+        putString("controllerState", controllerState)
+        putInt("baselineTargetKbps", baselineTargetKbps)
+        putInt("effectiveTargetKbps", effectiveTargetKbps)
+        putInt("floorTargetKbps", floorTargetKbps)
+        putInt("pendingTargetKbps", pendingTargetKbps)
+        putDouble("automaticReductionCount", automaticReductionCount.toDouble())
+        putDouble("automaticRestorationCount", automaticRestorationCount.toDouble())
+        putInt("pressureSampleCount", pressureSampleCount)
+        putInt("healthySampleCount", healthySampleCount)
+        putDouble("cooldownRemainingMs", cooldownRemainingMs.toDouble())
+        putDouble("recoveryEligibleInMs", recoveryEligibleInMs.toDouble())
+        putInt("publishGeneration", publishGeneration)
+        putInt("cumulativeReconnectCount", cumulativeReconnectCount)
+        putDouble("lastDecisionAt", lastDecisionAt.toDouble())
+        putString("lastDecisionReason", lastDecisionReason)
     }
 }
 

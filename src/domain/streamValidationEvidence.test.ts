@@ -2284,6 +2284,43 @@ describe("stream validation evidence", () => {
       qualityAutomationNextTargetCount: 0,
       qualityAutomationFailureCount: 0
     });
+
+    const staleRun = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      result: "warn",
+      now: new Date("2026-06-23T00:31:06.000Z")
+    });
+    expect(staleRun.qualityAutomation).toBeNull();
+
+    const activeDiagnostics = {
+      ...diagnostics,
+      telemetry: {
+        ...diagnostics.telemetry,
+        streamStatus: "live" as const
+      },
+      session: {
+        ...diagnostics.session,
+        events: [
+          {
+            id: "previous-session-quality-live-update",
+            at: "2026-06-23T00:00:03.000Z",
+            kind: "quality" as const,
+            severity: "warn" as const,
+            title: "Live quality target lowered",
+            message: "Previous session encoder target used Balanced."
+          }
+        ]
+      }
+    };
+    const activeRun = createStreamValidationRun({
+      diagnostics: activeDiagnostics,
+      devicePlatform: "android",
+      result: "warn",
+      now: new Date("2026-06-23T00:00:06.000Z")
+    });
+    expect(activeRun.nativeRuntime).toBeNull();
+    expect(activeRun.qualityAutomation).toBeNull();
   });
 
   it("stores safe native runtime evidence and downgrades passing runs that need review", () => {
@@ -2326,7 +2363,23 @@ describe("stream validation evidence", () => {
             minimumAppliedKbps: 2500,
             updateCount: 1,
             failureCount: 0,
-            lastUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z")
+            lastUpdatedAt: Date.parse("2026-06-23T00:00:04.000Z"),
+            controlOwner: "native",
+            controllerState: "recovering",
+            baselineTargetKbps: 3500,
+            effectiveTargetKbps: 2500,
+            floorTargetKbps: 1800,
+            pendingTargetKbps: 3000,
+            automaticReductionCount: 2,
+            automaticRestorationCount: 1,
+            pressureSampleCount: 8,
+            healthySampleCount: 5,
+            cooldownRemainingMs: 1200,
+            recoveryEligibleInMs: 2800,
+            publishGeneration: 4,
+            cumulativeReconnectCount: 2,
+            lastDecisionAt: Date.parse("2026-06-23T00:00:04.000Z"),
+            lastDecisionReason: "Authorization: Bearer nativeValidationDecisionToken12345"
           },
           lastError: ""
         },
@@ -2359,6 +2412,22 @@ describe("stream validation evidence", () => {
       queuedItems: 64,
       cacheSize: 120,
       bitrateAdaptationStatus: "reduced",
+      controlOwner: "native",
+      controllerState: "recovering",
+      baselineTargetKbps: 3500,
+      effectiveTargetKbps: 2500,
+      floorTargetKbps: 1800,
+      pendingTargetKbps: 3000,
+      automaticReductionCount: 2,
+      automaticRestorationCount: 1,
+      pressureSampleCount: 8,
+      healthySampleCount: 5,
+      cooldownRemainingMs: 1200,
+      recoveryEligibleInMs: 2800,
+      publishGeneration: 4,
+      cumulativeReconnectCount: 2,
+      lastDecisionAt: Date.parse("2026-06-23T00:00:04.000Z"),
+      lastDecisionReason: "Authorization: Bearer [redacted]",
       initialVideoBitrateKbps: 3500,
       requestedVideoBitrateKbps: 2500,
       appliedVideoBitrateKbps: 2500,
@@ -2367,14 +2436,48 @@ describe("stream validation evidence", () => {
       liveVideoBitrateUpdateFailureCount: 0,
       lastVideoBitrateUpdateAt: Date.parse("2026-06-23T00:00:04.000Z")
     });
+    expect(run).toMatchObject({
+      nativeRuntimeSessionId: "active:android:2026-06-23T00:00:00.000Z",
+      nativeRuntimeSessionStartedAt: "2026-06-23T00:00:00.000Z",
+      nativeRuntimeSessionEndedAt: "2026-06-23T00:00:05.000Z"
+    });
     expect(JSON.stringify(run)).not.toContain(streamKey);
+    expect(JSON.stringify(run)).not.toContain("nativeValidationDecisionToken12345");
     expect(JSON.stringify(run)).not.toContain("Native screen capture ready");
+    expect(run.qualityAutomation).toMatchObject({
+      status: "pass",
+      eventCount: 3,
+      liveUpdateCount: 3,
+      nextTargetCount: 0,
+      failureCount: 0
+    });
+    expect(run.qualityAutomation?.summary).toContain("Native-owned quality automation");
+    expect(run.qualityAutomation?.recommendation).toContain("native-owned bitrate controller");
     expect(summary.nativeRuntimeRunCount).toBe(1);
     expect(summary.nativeRuntimeWarningCount).toBe(1);
     expect(summary.nativeRuntimeFailureCount).toBe(0);
     expect(summary.latestNativeRuntime?.status).toBe("warn");
     expect(summary.runManifest[0]).toMatchObject({
+      nativeRuntimeSessionId: "active:android:2026-06-23T00:00:00.000Z",
+      nativeRuntimeSessionStartedAt: "2026-06-23T00:00:00.000Z",
+      nativeRuntimeSessionEndedAt: "2026-06-23T00:00:05.000Z",
       nativeRuntimeBitrateAdaptationStatus: "reduced",
+      nativeRuntimeControlOwner: "native",
+      nativeRuntimeControllerState: "recovering",
+      nativeRuntimeBaselineTargetKbps: 3500,
+      nativeRuntimeEffectiveTargetKbps: 2500,
+      nativeRuntimeFloorTargetKbps: 1800,
+      nativeRuntimePendingTargetKbps: 3000,
+      nativeRuntimeAutomaticReductionCount: 2,
+      nativeRuntimeAutomaticRestorationCount: 1,
+      nativeRuntimePressureSampleCount: 8,
+      nativeRuntimeHealthySampleCount: 5,
+      nativeRuntimeCooldownRemainingMs: 1200,
+      nativeRuntimeRecoveryEligibleInMs: 2800,
+      nativeRuntimePublishGeneration: 4,
+      nativeRuntimeCumulativeReconnectCount: 2,
+      nativeRuntimeLastDecisionAt: "2026-06-23T00:00:04.000Z",
+      nativeRuntimeLastDecisionReason: "Authorization: Bearer [redacted]",
       nativeRuntimeInitialVideoBitrateKbps: 3500,
       nativeRuntimeRequestedVideoBitrateKbps: 2500,
       nativeRuntimeAppliedVideoBitrateKbps: 2500,
@@ -2383,6 +2486,33 @@ describe("stream validation evidence", () => {
       nativeRuntimeLiveVideoBitrateUpdateFailureCount: 0,
       nativeRuntimeLastVideoBitrateUpdateAt: "2026-06-23T00:00:04.000Z"
     });
+
+    if (!diagnostics.nativeRuntime?.publisher.bitrateAdaptation) {
+      throw new Error("Expected native bitrate adaptation telemetry.");
+    }
+    diagnostics.nativeRuntime.publisher.bitrateAdaptation.failureCount = 2;
+    const failedUpdateRun = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      result: "warn",
+      now: new Date("2026-06-23T00:00:01.000Z")
+    });
+    expect(failedUpdateRun.qualityAutomation).toMatchObject({
+      status: "fail",
+      eventCount: 5,
+      liveUpdateCount: 3,
+      failureCount: 2
+    });
+    expect(failedUpdateRun.qualityAutomation?.recommendation).toContain("native-owned bitrate controller");
+
+    const staleRuntimeRun = createStreamValidationRun({
+      diagnostics,
+      devicePlatform: "android",
+      result: "warn",
+      now: new Date("2026-06-23T00:31:06.000Z")
+    });
+    expect(staleRuntimeRun.nativeRuntime).toBeNull();
+    expect(staleRuntimeRun.qualityAutomation).toBeNull();
   });
 
   it("does not count disabled face tracking snapshots as retained avatar motion evidence", () => {

@@ -128,6 +128,55 @@ export const createAppliedStreamQualityAutomationDecision = (
     suggestedTarget: target
   });
 
+export const deferNativeOwnedBitrateDecision = (
+  decision: StreamQualityAutomationDecision,
+  nativeOwned: boolean
+): StreamQualityAutomationDecision => {
+  const target = decision.suggestedTarget;
+  const changesVideoBitrate = Boolean(
+    target && target.videoBitrateKbps !== decision.currentTarget.videoBitrateKbps
+  );
+  const bitrateOnly = Boolean(
+    target &&
+      target.width === decision.currentTarget.width &&
+      target.height === decision.currentTarget.height &&
+      target.fps === decision.currentTarget.fps &&
+      target.audioBitrateKbps === decision.currentTarget.audioBitrateKbps &&
+      target.videoBitrateKbps !== decision.currentTarget.videoBitrateKbps
+  );
+  if (!nativeOwned || decision.command !== "apply-live-target" || !target || !changesVideoBitrate) {
+    return decision;
+  }
+
+  if (bitrateOnly) {
+    return {
+      ...decision,
+      command: "none",
+      key: null,
+      severity: "info",
+      title: "Native quality control active",
+      summary: "The native publisher owns live bitrate reduction and recovery for this stream.",
+      action: "Keep observing native queue pressure and the effective bitrate target."
+    };
+  }
+
+  const suggestedTarget: StreamQualityAdvisorTarget = {
+    ...target,
+    profileId: null,
+    profileName: `${target.profileName} with native bitrate control`,
+    videoBitrateKbps: decision.currentTarget.videoBitrateKbps,
+    estimatedUploadKbps: Math.round(
+      (decision.currentTarget.videoBitrateKbps + target.audioBitrateKbps) * 1.25
+    )
+  };
+  return {
+    ...decision,
+    suggestedTarget,
+    summary: `Live encoder target will use ${formatTarget(suggestedTarget)} while native bitrate control remains active.`,
+    action: "Apply the non-bitrate quality change while the native publisher retains its effective bitrate target."
+  };
+};
+
 const createDecision = (
   decision: Omit<StreamQualityAutomationDecision, "key"> & { key?: string | null }
 ): StreamQualityAutomationDecision => ({

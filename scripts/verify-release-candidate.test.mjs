@@ -745,7 +745,7 @@ function commercialSupportBundleFixture(patch = {}) {
   };
 
   return {
-    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 57 },
+    app: { name: "MobileLiveCaster", reportVersion: 1, bundleVersion: 58 },
     generatedAt,
     fixture: true,
     profile: {

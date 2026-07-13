@@ -315,7 +315,14 @@ describe("stream session summary", () => {
 
   it("stores native runtime evidence and marks congested sessions for review", () => {
     const summary = createStreamSessionSummary({
-      events: [],
+      events: [
+        event({
+          kind: "quality",
+          severity: "warn",
+          title: "Live quality target lowered",
+          message: "Mirrors one native automatic reduction."
+        })
+      ],
       healthSamples: [sample(1), sample(4)],
       target: { bitrateKbps: 3500, fps: 30 },
       endReason: "stopped",
@@ -353,8 +360,24 @@ describe("stream session summary", () => {
             appliedTargetKbps: 2_500,
             minimumAppliedKbps: 2_500,
             updateCount: 1,
-            failureCount: 0,
-            lastUpdatedAt: Date.parse("2026-06-23T00:00:03.500Z")
+            failureCount: 2,
+            lastUpdatedAt: Date.parse("2026-06-23T00:00:03.500Z"),
+            controlOwner: "native",
+            controllerState: "cooldown",
+            baselineTargetKbps: 3_500,
+            effectiveTargetKbps: 2_500,
+            floorTargetKbps: 1_800,
+            pendingTargetKbps: 0,
+            automaticReductionCount: 2,
+            automaticRestorationCount: 1,
+            pressureSampleCount: 7,
+            healthySampleCount: 3,
+            cooldownRemainingMs: 2_000,
+            recoveryEligibleInMs: 5_000,
+            publishGeneration: 3,
+            cumulativeReconnectCount: 2,
+            lastDecisionAt: Date.parse("2026-06-23T00:00:03.500Z"),
+            lastDecisionReason: `Authorization: Bearer nativeDecisionToken12345 ${"x".repeat(200)}`
           },
           lastError: ""
         },
@@ -459,7 +482,30 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.appliedVideoBitrateKbps).toBe(2_500);
     expect(summary?.nativeRuntime?.minimumAppliedVideoBitrateKbps).toBe(2_500);
     expect(summary?.nativeRuntime?.liveVideoBitrateUpdateCount).toBe(1);
-    expect(summary?.nativeRuntime?.liveVideoBitrateUpdateFailureCount).toBe(0);
+    expect(summary?.nativeRuntime?.liveVideoBitrateUpdateFailureCount).toBe(2);
+    expect(summary?.nativeRuntime).toMatchObject({
+      controlOwner: "native",
+      controllerState: "cooldown",
+      baselineTargetKbps: 3_500,
+      effectiveTargetKbps: 2_500,
+      floorTargetKbps: 1_800,
+      pendingTargetKbps: 0,
+      automaticReductionCount: 2,
+      automaticRestorationCount: 1,
+      pressureSampleCount: 7,
+      healthySampleCount: 3,
+      cooldownRemainingMs: 2_000,
+      recoveryEligibleInMs: 5_000,
+      publishGeneration: 3,
+      cumulativeReconnectCount: 2,
+      lastDecisionAt: Date.parse("2026-06-23T00:00:03.500Z")
+    });
+    expect(summary?.nativeRuntime?.lastDecisionReason).toContain("Authorization: Bearer [redacted]");
+    expect(summary?.nativeRuntime?.lastDecisionReason).not.toContain("nativeDecisionToken12345");
+    expect(summary?.nativeRuntime?.lastDecisionReason).toHaveLength(160);
+    expect(summary?.qualityLiveUpdateCount).toBe(3);
+    expect(summary?.qualityEventCount).toBe(5);
+    expect(summary?.qualityUpdateFailureCount).toBe(2);
     expect(summary?.nativeRuntime?.droppedVideoFrames).toBe(2);
     expect(summary?.nativeRuntime?.monitorEnabled).toBe(true);
     expect(summary?.nativeRuntime?.monitorRunning).toBe(true);
@@ -488,7 +534,9 @@ describe("stream session summary", () => {
     expect(summary?.nativeRuntime?.encoderProbeMessage).toContain("Authorization: Bearer [redacted]");
     expect(summary?.nativeRuntime?.encoderProbeMessage).not.toContain("nativeProbeToken12345");
     expect(summary?.summary).toContain("Native runtime needs review");
-    expect(summary?.recommendation).toContain("Lower bitrate");
+    expect(summary?.summary).toContain("Native-owned bitrate controller");
+    expect(summary?.recommendation).toContain("native-owned bitrate controller");
+    expect(summary?.recommendation).toContain("failed live updates");
   });
 
   it("requires Android MediaCodec native runtime evidence to include direct compositor frame proof", () => {
@@ -932,6 +980,9 @@ describe("stream session summary", () => {
           live2dRuntimeStatuses: ["ready client_secret=live2dClientSecret12345"],
           vrmRuntimeStatuses: ["ready mobilelivecaster://oauth/twitch?code=vrmCodeSecret12345"],
           monitorOutputName: "viewer@example.com",
+          controlOwner: "native",
+          controllerState: "cooldown",
+          lastDecisionReason: `Authorization: Bearer nativeDecisionSecret12345 ${"y".repeat(200)}`,
           summary: "Native callback mobilelivecaster://oauth/twitch?code=nativeCodeSecret12345",
           recommendation: "Open discord.gg/nativeRoom"
         }
@@ -950,6 +1001,10 @@ describe("stream session summary", () => {
     expect(normalized?.nativeRuntime?.live2dRuntimeStatuses).toEqual(["ready client_secret=[redacted]"]);
     expect(normalized?.nativeRuntime?.vrmRuntimeStatuses).toEqual(["ready [oauth callback redacted]"]);
     expect(normalized?.nativeRuntime?.monitorOutputName).toBe("[email redacted]");
+    expect(normalized?.nativeRuntime?.controlOwner).toBe("native");
+    expect(normalized?.nativeRuntime?.controllerState).toBe("cooldown");
+    expect(normalized?.nativeRuntime?.lastDecisionReason).toContain("Authorization: Bearer [redacted]");
+    expect(normalized?.nativeRuntime?.lastDecisionReason).toHaveLength(160);
     expect(normalized?.nativeRuntime?.summary).toBe("Native callback [oauth callback redacted]");
     expect(normalized?.nativeRuntime?.recommendation).toBe("Open [invite redacted]");
     expect(serialized).not.toContain("sessioncodesecret12345");
@@ -960,6 +1015,7 @@ describe("stream session summary", () => {
     expect(serialized).not.toContain("www.example.org");
     expect(serialized).not.toContain("audioaccesssecret12345");
     expect(serialized).not.toContain("nativeRuntimeToken12345");
+    expect(serialized).not.toContain("nativeDecisionSecret12345");
     expect(serialized).not.toContain("nativeProbeToken12345");
     expect(serialized).not.toContain("live2dClientSecret12345");
     expect(serialized).not.toContain("vrmCodeSecret12345");
@@ -1071,6 +1127,20 @@ describe("stream session summary", () => {
     expect(normalized[0]?.nativeRuntime?.stillImageAssetMissingKinds).toEqual(["image"]);
     expect(normalized[0]?.nativeRuntime?.stillImageAssetDecodedCount).toBe(1);
     expect(normalized[0]?.nativeRuntime?.stillImageAssetDecodedPixelCount).toBe(921_600);
+    expect(normalized[0]?.nativeRuntime).toMatchObject({
+      controlOwner: "none",
+      controllerState: "idle",
+      baselineTargetKbps: 0,
+      effectiveTargetKbps: 0,
+      floorTargetKbps: 0,
+      pendingTargetKbps: 0,
+      automaticReductionCount: 0,
+      automaticRestorationCount: 0,
+      publishGeneration: 0,
+      cumulativeReconnectCount: 0,
+      lastDecisionAt: 0,
+      lastDecisionReason: ""
+    });
     expect(normalized[0]?.nativeRuntime?.summary).toContain("Native runtime warn");
   });
 

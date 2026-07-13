@@ -18,7 +18,23 @@ describe("native live video bitrate telemetry", () => {
         minimumAppliedKbps: 3_900.4,
         updateCount: 2.4,
         failureCount: -1,
-        lastUpdatedAt: 1_784_000_000_000.4
+        lastUpdatedAt: 1_784_000_000_000.4,
+        controlOwner: "native",
+        controllerState: "cooldown",
+        baselineTargetKbps: 6_000.4,
+        effectiveTargetKbps: 4_300.4,
+        floorTargetKbps: 3_000.4,
+        pendingTargetKbps: 4_100.6,
+        automaticReductionCount: 2.4,
+        automaticRestorationCount: 1.6,
+        pressureSampleCount: 3.4,
+        healthySampleCount: 4.6,
+        cooldownRemainingMs: 7_999.6,
+        recoveryEligibleInMs: 12_000.4,
+        publishGeneration: 3.6,
+        cumulativeReconnectCount: 1.4,
+        lastDecisionAt: 1_784_000_000_100.4,
+        lastDecisionReason: "Queue pressure persisted."
       })
     ).toEqual({
       status: "reduced",
@@ -28,11 +44,27 @@ describe("native live video bitrate telemetry", () => {
       minimumAppliedKbps: 3_900,
       updateCount: 2,
       failureCount: 0,
-      lastUpdatedAt: 1_784_000_000_000
+      lastUpdatedAt: 1_784_000_000_000,
+      controlOwner: "native",
+      controllerState: "cooldown",
+      baselineTargetKbps: 6_000,
+      effectiveTargetKbps: 4_300,
+      floorTargetKbps: 3_000,
+      pendingTargetKbps: 4_101,
+      automaticReductionCount: 2,
+      automaticRestorationCount: 2,
+      pressureSampleCount: 3,
+      healthySampleCount: 5,
+      cooldownRemainingMs: 8_000,
+      recoveryEligibleInMs: 12_000,
+      publishGeneration: 4,
+      cumulativeReconnectCount: 1,
+      lastDecisionAt: 1_784_000_000_100,
+      lastDecisionReason: "Queue pressure persisted."
     });
   });
 
-  it("fails malformed and missing values closed without inventing an update", () => {
+  it("keeps defaults compatible with payloads from older native runtimes", () => {
     expect(normalizeNativeRuntimeBitrateAdaptation(undefined)).toEqual({
       status: "unknown",
       initialTargetKbps: 0,
@@ -41,15 +73,73 @@ describe("native live video bitrate telemetry", () => {
       minimumAppliedKbps: 0,
       updateCount: 0,
       failureCount: 0,
-      lastUpdatedAt: 0
+      lastUpdatedAt: 0,
+      controlOwner: "none",
+      controllerState: "idle",
+      baselineTargetKbps: 0,
+      effectiveTargetKbps: 0,
+      floorTargetKbps: 0,
+      pendingTargetKbps: 0,
+      automaticReductionCount: 0,
+      automaticRestorationCount: 0,
+      pressureSampleCount: 0,
+      healthySampleCount: 0,
+      cooldownRemainingMs: 0,
+      recoveryEligibleInMs: 0,
+      publishGeneration: 0,
+      cumulativeReconnectCount: 0,
+      lastDecisionAt: 0,
+      lastDecisionReason: ""
     });
-    expect(
-      normalizeNativeRuntimeBitrateAdaptation({
-        status: "perfect" as "steady",
-        appliedTargetKbps: Number.NaN,
-        failureCount: 1.6
-      })
-    ).toMatchObject({ status: "unknown", appliedTargetKbps: 0, failureCount: 2 });
+  });
+
+  it("bounds hostile numeric values and sanitizes untrusted controller text", () => {
+    const normalized = normalizeNativeRuntimeBitrateAdaptation({
+      status: "perfect" as "steady",
+      appliedTargetKbps: Number.NaN,
+      failureCount: 1.6,
+      controlOwner: "javascript" as "native",
+      controllerState: "pressure\nAuthorization: Bearer controller-secret-token-value",
+      baselineTargetKbps: Number.POSITIVE_INFINITY,
+      effectiveTargetKbps: Number.MAX_VALUE,
+      floorTargetKbps: -100,
+      pendingTargetKbps: Number.NaN,
+      automaticReductionCount: -2,
+      automaticRestorationCount: Number.NEGATIVE_INFINITY,
+      pressureSampleCount: 4.6,
+      healthySampleCount: -4,
+      cooldownRemainingMs: Number.POSITIVE_INFINITY,
+      recoveryEligibleInMs: Number.MAX_VALUE,
+      publishGeneration: -1,
+      cumulativeReconnectCount: 2.4,
+      lastDecisionAt: Number.NaN,
+      lastDecisionReason: `Authorization: Bearer decision-secret-token-value\n${"x".repeat(300)}`
+    });
+
+    expect(normalized).toMatchObject({
+      status: "unknown",
+      appliedTargetKbps: 0,
+      failureCount: 2,
+      controlOwner: "none",
+      baselineTargetKbps: 0,
+      effectiveTargetKbps: Number.MAX_SAFE_INTEGER,
+      floorTargetKbps: 0,
+      pendingTargetKbps: 0,
+      automaticReductionCount: 0,
+      automaticRestorationCount: 0,
+      pressureSampleCount: 5,
+      healthySampleCount: 0,
+      cooldownRemainingMs: 0,
+      recoveryEligibleInMs: Number.MAX_SAFE_INTEGER,
+      publishGeneration: 0,
+      cumulativeReconnectCount: 2,
+      lastDecisionAt: 0
+    });
+    expect(normalized.controllerState).toBe("pressure Authorization: Bearer [redacted]");
+    expect(normalized.lastDecisionReason).toContain("Bearer [redacted]");
+    expect(normalized.lastDecisionReason).not.toContain("decision-secret-token-value");
+    expect(normalized.lastDecisionReason).not.toContain("\n");
+    expect(normalized.lastDecisionReason.length).toBeLessThanOrEqual(160);
   });
 });
 

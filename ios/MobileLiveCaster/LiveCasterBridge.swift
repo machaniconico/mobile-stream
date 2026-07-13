@@ -1338,6 +1338,7 @@ final class LiveCasterNative: RCTEventEmitter {
                 "videoEncoderBackend": videoEncoder.stringValue("backend", fallback: "none"),
                 "audioEncoderBackend": audioEncoder.stringValue("backend", fallback: "none"),
                 "reconnectAttempts": publisher.intValue("reconnectAttempts"),
+                "cumulativeReconnectCount": publisher.intValue("cumulativeReconnectCount"),
                 "sentVideoFrames": publisher.intValue("videoMessagesSent"),
                 "sentAudioFrames": publisher.intValue("audioMessagesSent"),
                 "currentPublishVideoFrames": publisher.intValue("currentPublishVideoMessagesSent"),
@@ -1361,7 +1362,27 @@ final class LiveCasterNative: RCTEventEmitter {
                     "minimumAppliedKbps": bitrateAdaptation.intValue("minimumAppliedKbps"),
                     "updateCount": bitrateAdaptation.intValue("updateCount"),
                     "failureCount": bitrateAdaptation.intValue("failureCount"),
-                    "lastUpdatedAt": bitrateAdaptation.doubleValue("lastUpdatedAt")
+                    "lastUpdatedAt": bitrateAdaptation.doubleValue("lastUpdatedAt"),
+                    "controlOwner": bitrateAdaptation.stringValue("controlOwner", fallback: "none"),
+                    "controllerState": bitrateAdaptation.stringValue("controllerState", fallback: "idle"),
+                    "baselineTargetKbps": bitrateAdaptation.intValue("baselineTargetKbps"),
+                    "effectiveTargetKbps": bitrateAdaptation.intValue("effectiveTargetKbps"),
+                    "floorTargetKbps": bitrateAdaptation.intValue("floorTargetKbps"),
+                    "pendingTargetKbps": bitrateAdaptation.intValue("pendingTargetKbps"),
+                    "automaticReductionCount": bitrateAdaptation.intValue("automaticReductionCount"),
+                    "automaticRestorationCount": bitrateAdaptation.intValue("automaticRestorationCount"),
+                    "pressureSampleCount": bitrateAdaptation.intValue("pressureSampleCount"),
+                    "healthySampleCount": bitrateAdaptation.intValue("healthySampleCount"),
+                    "cooldownRemainingMs": bitrateAdaptation.intValue("cooldownRemainingMs"),
+                    "recoveryEligibleInMs": bitrateAdaptation.intValue("recoveryEligibleInMs"),
+                    "publishGeneration": bitrateAdaptation.intValue("publishGeneration"),
+                    "cumulativeReconnectCount": bitrateAdaptation.intValue("cumulativeReconnectCount"),
+                    "lastDecisionAt": bitrateAdaptation.doubleValue("lastDecisionAt"),
+                    "lastDecisionReason": redactSensitiveText(
+                        bitrateAdaptation.stringValue("lastDecisionReason"),
+                        streamKey: streamKey,
+                        publishURL: publishURL
+                    )
                 ],
                 "lastError": redactSensitiveText(
                     publisher.stringValue("lastError", fallback: runtimeState.stringValue("error")),

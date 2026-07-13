@@ -786,6 +786,7 @@ final class BroadcastSharedStore {
         configuration: BroadcastUploadConfiguration?,
         stats: BroadcastUploadStats,
         videoEncoderStats: BroadcastVideoEncoderStats?,
+        bitrateAdaptationSnapshot: NativeAdaptiveBitrateSnapshot?,
         audioEncoderStats: BroadcastAudioEncoderStats?,
         publisherStats: BroadcastRTMPPublisherStats?,
         continuitySnapshot: BroadcastMediaContinuitySnapshot?,
@@ -806,7 +807,14 @@ final class BroadcastSharedStore {
         ]
 
         if let videoEncoderStats {
-            payload["videoEncoder"] = videoEncoderStats.asDictionary()
+            payload["videoEncoder"] = mergingBitrateAdaptation(
+                into: videoEncoderStats.asDictionary(),
+                snapshot: bitrateAdaptationSnapshot
+            )
+        } else if let bitrateAdaptationSnapshot {
+            payload["videoEncoder"] = [
+                "bitrateAdaptation": bitrateAdaptationSnapshot.asDictionary()
+            ]
         }
 
         if let audioEncoderStats {
@@ -850,7 +858,10 @@ final class BroadcastSharedStore {
         defaults.synchronize()
     }
 
-    static func saveContinuitySnapshot(_ continuitySnapshot: BroadcastMediaContinuitySnapshot) {
+    static func saveContinuitySnapshot(
+        _ continuitySnapshot: BroadcastMediaContinuitySnapshot,
+        bitrateAdaptationSnapshot: NativeAdaptiveBitrateSnapshot
+    ) {
         runtimeStateLock.lock()
         defer { runtimeStateLock.unlock() }
         guard
@@ -861,8 +872,29 @@ final class BroadcastSharedStore {
         }
         payload["updatedAt"] = Date().timeIntervalSince1970 * 1000
         payload["continuity"] = continuitySnapshot.asDictionary()
+        let videoEncoder = payload["videoEncoder"] as? [String: Any] ?? [:]
+        payload["videoEncoder"] = mergingBitrateAdaptation(
+            into: videoEncoder,
+            snapshot: bitrateAdaptationSnapshot
+        )
         defaults.set(payload, forKey: broadcastRuntimeStateKey)
         defaults.synchronize()
+    }
+
+    private static func mergingBitrateAdaptation(
+        into videoEncoder: [String: Any],
+        snapshot: NativeAdaptiveBitrateSnapshot?
+    ) -> [String: Any] {
+        guard let snapshot else {
+            return videoEncoder
+        }
+        var mergedVideoEncoder = videoEncoder
+        var bitrateAdaptation = videoEncoder["bitrateAdaptation"] as? [String: Any] ?? [:]
+        for (key, value) in snapshot.asDictionary() {
+            bitrateAdaptation[key] = value
+        }
+        mergedVideoEncoder["bitrateAdaptation"] = bitrateAdaptation
+        return mergedVideoEncoder
     }
 
     static func effectiveRuntimeState(
@@ -1376,6 +1408,7 @@ struct BroadcastRTMPPublisherStats: Equatable {
     private(set) var streamId: Int = 0
     private(set) var lastTimestampMs: Int = 0
     private(set) var reconnectAttempts: Int = 0
+    private(set) var cumulativeReconnectCount: Int = 0
     private(set) var nextReconnectDelayMs: Int = 0
     private(set) var cacheSize: Int = 0
     private(set) var itemsInCache: Int = 0
@@ -1430,6 +1463,7 @@ struct BroadcastRTMPPublisherStats: Equatable {
     mutating func recordReconnectAttempt(_ attempt: Int, delayMs: Int, reason: String) {
         state = .reconnecting
         reconnectAttempts = attempt
+        cumulativeReconnectCount += 1
         nextReconnectDelayMs = delayMs
         lastError = reason
     }
@@ -1481,6 +1515,7 @@ struct BroadcastRTMPPublisherStats: Equatable {
             "streamId": streamId,
             "lastTimestampMs": lastTimestampMs,
             "reconnectAttempts": reconnectAttempts,
+            "cumulativeReconnectCount": cumulativeReconnectCount,
             "nextReconnectDelayMs": nextReconnectDelayMs,
             "cacheSize": cacheSize,
             "itemsInCache": itemsInCache,
@@ -5616,6 +5651,8 @@ final class BroadcastUploadPipeline {
     private var mediaContinuityTimer: DispatchSourceTimer?
     private var mediaContinuityHeartbeatGate = BroadcastMediaContinuityHeartbeatGate()
     private var mediaContinuityTracker = BroadcastMediaContinuityTracker()
+    private let adaptiveBitrateLock = NSLock()
+    private var adaptiveBitrateController = NativeAdaptiveBitrateController()
 
     var isRunning: Bool {
         state.acceptsSamples
@@ -5657,6 +5694,12 @@ final class BroadcastUploadPipeline {
             videoEncoder = nextVideoEncoder
             audioEncoder = nextAudioEncoder
             sceneCompositor = nextSceneCompositor
+            adaptiveBitrateLock.performLocked {
+                adaptiveBitrateController.reset(
+                    baselineKbps: nextConfiguration.videoBitrateKbps,
+                    nowElapsedMs: ProcessInfo.processInfo.systemUptime * 1_000
+                )
+            }
             activeRenderGraphJSON = Self.normalizedRenderGraphJSON(nextConfiguration.renderGraphJSON)
             activeRenderGraphUpdatedAt = nextConfiguration.renderGraphUpdatedAt
             lastSceneConfigurationCheckAt = 0
@@ -5666,7 +5709,7 @@ final class BroadcastUploadPipeline {
             stats.start()
             state = .running
             nextPublisher.start()
-            startMediaContinuityHeartbeat(publisher: nextPublisher)
+            startMediaContinuityHeartbeat(publisher: nextPublisher, videoEncoder: nextVideoEncoder)
             logger.info(
                 "Broadcast upload started destination=\(nextConfiguration.destinationName, privacy: .public) scheme=\(nextConfiguration.transportScheme, privacy: .public) size=\(nextConfiguration.width)x\(nextConfiguration.height) fps=\(nextConfiguration.fps) composition=\(nextSceneCompositor.summary.message, privacy: .public)"
             )
@@ -5829,6 +5872,7 @@ final class BroadcastUploadPipeline {
             configuration: configuration,
             stats: stats,
             videoEncoderStats: overrideVideoEncoderStats ?? videoEncoder?.stats,
+            bitrateAdaptationSnapshot: adaptiveBitrateSnapshot(),
             audioEncoderStats: overrideAudioEncoderStats ?? audioEncoder?.stats,
             publisherStats: effectivePublisherStats,
             continuitySnapshot: continuitySnapshot,
@@ -5837,7 +5881,10 @@ final class BroadcastUploadPipeline {
         )
     }
 
-    private func startMediaContinuityHeartbeat(publisher: BroadcastRTMPPublisher) {
+    private func startMediaContinuityHeartbeat(
+        publisher: BroadcastRTMPPublisher,
+        videoEncoder: BroadcastVideoEncoder
+    ) {
         stopMediaContinuityHeartbeat()
         let generation = mediaContinuityLock.performLocked { () -> Int in
             mediaContinuityTracker.reset()
@@ -5854,12 +5901,21 @@ final class BroadcastUploadPipeline {
                     return
                 }
                 let publisherStats = publisher.stats
+                let active = self.mediaContinuityHeartbeatGate.enabled && publisherStats.state == .published
                 let continuitySnapshot = self.mediaContinuityTracker.record(
                     videoMessages: publisherStats.videoMessagesSent,
                     audioMessages: publisherStats.audioMessagesSent,
-                    active: self.mediaContinuityHeartbeatGate.enabled && publisherStats.state == .published
+                    active: active
                 )
-                BroadcastSharedStore.saveContinuitySnapshot(continuitySnapshot)
+                let bitrateAdaptationSnapshot = self.evaluateAdaptiveBitrate(
+                    publisherStats: publisherStats,
+                    active: active,
+                    videoEncoder: videoEncoder
+                )
+                BroadcastSharedStore.saveContinuitySnapshot(
+                    continuitySnapshot,
+                    bitrateAdaptationSnapshot: bitrateAdaptationSnapshot
+                )
             }
         }
         mediaContinuityTimer = timer
@@ -5878,6 +5934,73 @@ final class BroadcastUploadPipeline {
     private func setMediaContinuityEnabled(_ enabled: Bool) {
         mediaContinuityLock.performLocked {
             mediaContinuityHeartbeatGate.setEnabled(enabled)
+        }
+    }
+
+    private func evaluateAdaptiveBitrate(
+        publisherStats: BroadcastRTMPPublisherStats,
+        active: Bool,
+        videoEncoder: BroadcastVideoEncoder
+    ) -> NativeAdaptiveBitrateSnapshot {
+        adaptiveBitrateLock.lock()
+        defer { adaptiveBitrateLock.unlock() }
+        let nowElapsedMs = ProcessInfo.processInfo.systemUptime * 1_000
+        let nowWallMs = Date().timeIntervalSince1970 * 1_000
+        let sample = NativeAdaptiveBitrateSample(
+            nowElapsedMs: nowElapsedMs,
+            nowWallMs: nowWallMs,
+            active: active,
+            publishGeneration: publisherStats.publishGeneration,
+            congested: publisherStats.congested,
+            queuedItems: publisherStats.itemsInCache,
+            cacheSize: publisherStats.cacheSize,
+            measuredBitrateKbps: 0,
+            useMeasuredBitrate: false,
+            droppedVideoFrames: publisherStats.droppedVideoFrames,
+            cumulativeReconnectCount: publisherStats.cumulativeReconnectCount
+        )
+        if let decision = adaptiveBitrateController.evaluate(sample) {
+            do {
+                try videoEncoder.updateBitrate(targetKbps: decision.targetKbps)
+                adaptiveBitrateController.recordApplied(decision.targetKbps)
+                logger.info(
+                    "Native adaptive bitrate \(decision.type, privacy: .public) applied target=\(decision.targetKbps) reason=\(decision.reason, privacy: .public)"
+                )
+            } catch {
+                adaptiveBitrateController.recordFailure(
+                    "Native encoder rejected the adaptive bitrate target.",
+                    nowWallMs: nowWallMs
+                )
+                logger.error(
+                    "Native adaptive bitrate update failed target=\(decision.targetKbps): \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+        return adaptiveBitrateController.snapshot(nowElapsedMs: nowElapsedMs)
+    }
+
+    private func adaptiveBitrateSnapshot() -> NativeAdaptiveBitrateSnapshot {
+        adaptiveBitrateLock.performLocked {
+            adaptiveBitrateController.snapshot(nowElapsedMs: ProcessInfo.processInfo.systemUptime * 1_000)
+        }
+    }
+
+    private func applyManualVideoBitrateUpdate(
+        targetKbps: Int,
+        videoEncoder: BroadcastVideoEncoder
+    ) throws {
+        adaptiveBitrateLock.lock()
+        defer { adaptiveBitrateLock.unlock() }
+        adaptiveBitrateController.requestBaselineChange(targetKbps)
+        do {
+            try videoEncoder.updateBitrate(targetKbps: targetKbps)
+            adaptiveBitrateController.recordApplied(targetKbps)
+        } catch {
+            adaptiveBitrateController.recordFailure(
+                "Native encoder rejected the manual bitrate target.",
+                nowWallMs: Date().timeIntervalSince1970 * 1_000
+            )
+            throw error
         }
     }
 
@@ -5964,8 +6087,24 @@ final class BroadcastUploadPipeline {
         }
 
         if videoBitrateChanged {
+            guard let videoEncoder else {
+                adaptiveBitrateLock.performLocked {
+                    adaptiveBitrateController.requestBaselineChange(nextConfiguration.videoBitrateKbps)
+                    adaptiveBitrateController.recordFailure(
+                        "Native encoder was unavailable for the manual bitrate target.",
+                        nowWallMs: Date().timeIntervalSince1970 * 1_000
+                    )
+                }
+                lastRejectedRenderGraphUpdateKey = nextRenderGraphUpdateKey
+                logger.error("Live VideoToolbox bitrate update failed: encoder unavailable")
+                saveRuntimeState()
+                return
+            }
             do {
-                try videoEncoder?.updateBitrate(targetKbps: nextConfiguration.videoBitrateKbps)
+                try applyManualVideoBitrateUpdate(
+                    targetKbps: nextConfiguration.videoBitrateKbps,
+                    videoEncoder: videoEncoder
+                )
             } catch {
                 lastRejectedRenderGraphUpdateKey = nextRenderGraphUpdateKey
                 logger.error("Live VideoToolbox bitrate update failed: \(error.localizedDescription, privacy: .public)")

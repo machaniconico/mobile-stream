@@ -1741,6 +1741,170 @@ describe("stream diagnostics", () => {
     expect(nativeCheck?.message).toContain("3500 kbps remained applied");
   });
 
+  it("reports native adaptive bitrate controller metrics and its last decision", () => {
+    const scene = nativeReadyScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeRuntimeWithAudioProcessing(nativeAudioProcessing());
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      platform: "ios",
+      state: { status: "live" },
+      health: health({ bitrateKbps: 2_800, fps: 30, elapsedSeconds: 20 }),
+      nativeRuntime: {
+        ...runtime,
+        publisher: {
+          ...runtime.publisher,
+          bitrateAdaptation: {
+            status: "reduced",
+            initialTargetKbps: 3_500,
+            requestedTargetKbps: 2_800,
+            appliedTargetKbps: 2_800,
+            minimumAppliedKbps: 2_100,
+            updateCount: 3,
+            failureCount: 0,
+            lastUpdatedAt: Date.parse("2026-06-23T00:00:09.500Z"),
+            controlOwner: "native",
+            controllerState: "cooldown",
+            baselineTargetKbps: 3_500,
+            effectiveTargetKbps: 2_800,
+            floorTargetKbps: 2_100,
+            pendingTargetKbps: 2_800,
+            automaticReductionCount: 2,
+            automaticRestorationCount: 1,
+            pressureSampleCount: 4,
+            healthySampleCount: 2,
+            cooldownRemainingMs: 7_500,
+            recoveryEligibleInMs: 19_500,
+            publishGeneration: 4,
+            cumulativeReconnectCount: 3,
+            lastDecisionAt: Date.parse("2026-06-23T00:00:09.500Z"),
+            lastDecisionReason: "Queue pressure persisted for three samples."
+          }
+        }
+      }
+    });
+
+    expect(diagnostics.nativeRuntime?.publisher.bitrateAdaptation).toMatchObject({
+      controlOwner: "native",
+      controllerState: "cooldown",
+      baselineTargetKbps: 3_500,
+      effectiveTargetKbps: 2_800,
+      floorTargetKbps: 2_100,
+      automaticReductionCount: 2,
+      automaticRestorationCount: 1,
+      pressureSampleCount: 4,
+      healthySampleCount: 2,
+      cooldownRemainingMs: 7_500,
+      recoveryEligibleInMs: 19_500,
+      publishGeneration: 4,
+      cumulativeReconnectCount: 3
+    });
+    const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
+    expect(report).toContain(
+      "Adaptive bitrate controller: owner native / state cooldown / effective 2800 kbps vs baseline 3500 kbps / floor 2100 kbps / pending 2800 kbps / reductions 2 / restorations 1 / generation 4 / reconnects 3"
+    );
+    expect(report).toContain(
+      "Adaptive bitrate samples: pressure 4 / healthy 2 / cooldown 7500ms / recovery eligible in 19500ms"
+    );
+    expect(report).toContain(
+      "Adaptive bitrate last decision: 2026-06-23T00:00:09.500Z / Queue pressure persisted for three samples."
+    );
+  });
+
+  it("keeps adaptive controller telemetry unreported for older native runtime payloads", () => {
+    const scene = nativeReadyScene();
+    const profile = createDefaultStudioProfile();
+    const readiness = createReadinessReport(scene, profile);
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      platform: "ios",
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3_500, fps: 30, elapsedSeconds: 20 }),
+      nativeRuntime: nativeRuntimeWithAudioProcessing(nativeAudioProcessing())
+    });
+
+    expect(diagnostics.nativeRuntime?.publisher.bitrateAdaptation).toBeUndefined();
+    const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
+    expect(report).toContain("Adaptive bitrate controller: not reported");
+    expect(report).toContain("Adaptive bitrate samples: not reported");
+    expect(report).toContain("Adaptive bitrate last decision: not reported");
+  });
+
+  it("normalizes hostile adaptive bitrate telemetry without leaking controller secrets", () => {
+    const scene = nativeReadyScene();
+    const profile = {
+      ...createDefaultStudioProfile(),
+      destination: {
+        ...createDefaultStudioProfile().destination,
+        streamKey: demoStreamKey
+      }
+    };
+    const readiness = createReadinessReport(scene, profile);
+    const runtime = nativeRuntimeWithAudioProcessing(nativeAudioProcessing());
+    const diagnostics = createStreamDiagnostics(scene, profile, readiness, {
+      platform: "ios",
+      state: { status: "live" },
+      health: health({ bitrateKbps: 3_500, fps: 30, elapsedSeconds: 20 }),
+      nativeRuntime: {
+        ...runtime,
+        publisher: {
+          ...runtime.publisher,
+          bitrateAdaptation: {
+            status: "unsafe" as "steady",
+            initialTargetKbps: Number.NaN,
+            requestedTargetKbps: -1,
+            appliedTargetKbps: Number.POSITIVE_INFINITY,
+            minimumAppliedKbps: Number.MAX_VALUE,
+            updateCount: -2,
+            failureCount: 1.6,
+            lastUpdatedAt: Number.NaN,
+            controlOwner: "javascript" as "native",
+            controllerState: "pressure\nAuthorization: Bearer controller-secret-value",
+            baselineTargetKbps: Number.POSITIVE_INFINITY,
+            effectiveTargetKbps: Number.MAX_VALUE,
+            floorTargetKbps: -1,
+            pendingTargetKbps: Number.NaN,
+            automaticReductionCount: -1,
+            automaticRestorationCount: Number.NEGATIVE_INFINITY,
+            pressureSampleCount: 2.6,
+            healthySampleCount: -2,
+            cooldownRemainingMs: Number.POSITIVE_INFINITY,
+            recoveryEligibleInMs: Number.MAX_VALUE,
+            publishGeneration: -4,
+            cumulativeReconnectCount: 3.4,
+            lastDecisionAt: Number.NaN,
+            lastDecisionReason: `Authorization: Bearer adaptive-secret-value ${demoStreamKey}\n${"x".repeat(300)}`
+          }
+        }
+      }
+    });
+
+    const adaptation = diagnostics.nativeRuntime?.publisher.bitrateAdaptation;
+    expect(adaptation).toMatchObject({
+      status: "unknown",
+      controlOwner: "none",
+      baselineTargetKbps: 0,
+      effectiveTargetKbps: Number.MAX_SAFE_INTEGER,
+      floorTargetKbps: 0,
+      pendingTargetKbps: 0,
+      automaticReductionCount: 0,
+      automaticRestorationCount: 0,
+      pressureSampleCount: 3,
+      healthySampleCount: 0,
+      cooldownRemainingMs: 0,
+      recoveryEligibleInMs: Number.MAX_SAFE_INTEGER,
+      publishGeneration: 0,
+      cumulativeReconnectCount: 3,
+      lastDecisionAt: 0
+    });
+    expect((adaptation?.lastDecisionReason ?? "").length).toBeLessThanOrEqual(160);
+    const report = formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics));
+    expect(report).toContain("Adaptive bitrate controller: owner none");
+    expect(report).toContain("Adaptive bitrate last decision: none / Authorization: Bearer [redacted]");
+    expect(report).not.toContain("adaptive-secret-value");
+    expect(report).not.toContain("controller-secret-value");
+    expect(report).not.toContain(demoStreamKey);
+  });
+
   it("redacts stream keys that appear before the final publish URL segment", () => {
     const scene = createDefaultScene();
     const profile = {

@@ -54,7 +54,8 @@ describe("native media continuity watchdog", () => {
     expect(handler).toContain("mediaContinuityTracker.reset()");
     expect(handler).toContain('DispatchQueue(label: "MobileLiveCaster.broadcast.media-continuity")');
     expect(handler).toContain("timer.schedule(deadline: .now() + 1, repeating: 1");
-    expect(handler).toContain("BroadcastSharedStore.saveContinuitySnapshot(continuitySnapshot)");
+    expect(handler).toContain("BroadcastSharedStore.saveContinuitySnapshot(");
+    expect(handler).toContain("bitrateAdaptationSnapshot: bitrateAdaptationSnapshot");
     expect(handler).toContain("setMediaContinuityEnabled(false)");
     expect(handler).toContain("setMediaContinuityEnabled(true)");
     expect(handler).toContain("let finalPublisherStats = publisher?.statsAfterDrainingPendingMedia()");

@@ -644,6 +644,9 @@ export const formatStreamDiagnosticReport = (
     `- Runtime status: ${diagnostics.nativeRuntime?.runtimeStatus ?? "-"}`,
     `- Publisher: ${diagnostics.nativeRuntime?.publisher.state || "-"} / generation ${diagnostics.nativeRuntime?.publisher.publishGeneration ?? 0} / current media ${diagnostics.nativeRuntime?.publisher.currentPublishVideoFrames ?? 0} video ${diagnostics.nativeRuntime?.publisher.currentPublishAudioFrames ?? 0} audio / cache ${diagnostics.nativeRuntime?.publisher.itemsInCache ?? 0}/${diagnostics.nativeRuntime?.publisher.cacheSize ?? 0} / congested ${diagnostics.nativeRuntime?.publisher.congested ? "yes" : "no"}`,
     `- Live video bitrate: ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.status ?? "unknown"} / initial ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.initialTargetKbps ?? 0} kbps / requested ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.requestedTargetKbps ?? 0} kbps / applied ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.appliedTargetKbps ?? 0} kbps / minimum ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.minimumAppliedKbps ?? 0} kbps / updates ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.updateCount ?? 0} / failed ${diagnostics.nativeRuntime?.publisher.bitrateAdaptation?.failureCount ?? 0}`,
+    `- Adaptive bitrate controller: ${formatNativeBitrateController(diagnostics.nativeRuntime)}`,
+    `- Adaptive bitrate samples: ${formatNativeBitrateSamples(diagnostics.nativeRuntime)}`,
+    `- Adaptive bitrate last decision: ${formatNativeBitrateLastDecision(diagnostics.nativeRuntime)}`,
     `- Media continuity: ${diagnostics.nativeRuntime?.continuity?.status ?? "unknown"} / current ${diagnostics.nativeRuntime?.continuity?.videoStallDurationMs ?? 0}ms video ${diagnostics.nativeRuntime?.continuity?.audioStallDurationMs ?? 0}ms audio / incidents ${diagnostics.nativeRuntime?.continuity?.videoStallCount ?? 0} video ${diagnostics.nativeRuntime?.continuity?.audioStallCount ?? 0} audio / max ${diagnostics.nativeRuntime?.continuity?.maxVideoStallDurationMs ?? 0}ms video ${diagnostics.nativeRuntime?.continuity?.maxAudioStallDurationMs ?? 0}ms audio`,
     `- A/V sync: ${diagnostics.nativeRuntime?.avSync?.status ?? "unknown"} / skew ${diagnostics.nativeRuntime?.avSync?.skewMs ?? 0}ms / max ${diagnostics.nativeRuntime?.avSync?.maxAbsSkewMs ?? 0}ms / samples ${diagnostics.nativeRuntime?.avSync?.sampleCount ?? 0} / incidents ${diagnostics.nativeRuntime?.avSync?.outOfSyncIncidentCount ?? 0} / critical ${diagnostics.nativeRuntime?.avSync?.criticalIncidentCount ?? 0}`,
     `- Composition: ${diagnostics.nativeRuntime?.composition.status ?? "-"} / ${diagnostics.nativeRuntime?.composition.message || "-"}`,
@@ -1454,32 +1457,78 @@ const sanitizeNativeCompositionReport = (
 const sanitizeNativeRuntime = (
   runtime: NativeRuntimeTelemetry | null,
   streamKey: string
-): NativeRuntimeTelemetry | null =>
-  runtime
-    ? {
-        ...runtime,
-        message: redactStreamKeyOccurrences(runtime.message, streamKey),
-        publisher: {
-          ...runtime.publisher,
-          lastError: redactStreamKeyOccurrences(runtime.publisher.lastError, streamKey)
-        },
-        composition: {
-          ...runtime.composition,
-          message: redactStreamKeyOccurrences(runtime.composition.message, streamKey),
-          appliedKinds: (runtime.composition.appliedKinds ?? []).map((kind) => redactStreamKeyOccurrences(kind, streamKey)),
-          skippedKinds: runtime.composition.skippedKinds.map((kind) => redactStreamKeyOccurrences(kind, streamKey)),
-          stillImageAssetMissingKinds: (runtime.composition.stillImageAssetMissingKinds ?? []).map((kind) =>
-            redactStreamKeyOccurrences(kind, streamKey)
-          )
-        },
-        audioProcessing: runtime.audioProcessing
-          ? {
-              ...runtime.audioProcessing,
-              monitorLastError: redactStreamKeyOccurrences(runtime.audioProcessing.monitorLastError, streamKey)
-            }
-          : undefined
-      }
-    : null;
+): NativeRuntimeTelemetry | null => {
+  if (!runtime) {
+    return null;
+  }
+
+  const bitrateAdaptation = runtime.publisher.bitrateAdaptation
+    ? normalizeNativeRuntimeBitrateAdaptation(runtime.publisher.bitrateAdaptation)
+    : undefined;
+  const sanitizedBitrateAdaptation = bitrateAdaptation
+    ? normalizeNativeRuntimeBitrateAdaptation({
+        ...bitrateAdaptation,
+        controllerState: redactStreamKeyOccurrences(bitrateAdaptation.controllerState, streamKey),
+        lastDecisionReason: redactStreamKeyOccurrences(bitrateAdaptation.lastDecisionReason, streamKey)
+      })
+    : undefined;
+  return {
+    ...runtime,
+    message: redactStreamKeyOccurrences(runtime.message, streamKey),
+    publisher: {
+      ...runtime.publisher,
+      ...(sanitizedBitrateAdaptation ? { bitrateAdaptation: sanitizedBitrateAdaptation } : {}),
+      lastError: redactStreamKeyOccurrences(runtime.publisher.lastError, streamKey)
+    },
+    composition: {
+      ...runtime.composition,
+      message: redactStreamKeyOccurrences(runtime.composition.message, streamKey),
+      appliedKinds: (runtime.composition.appliedKinds ?? []).map((kind) => redactStreamKeyOccurrences(kind, streamKey)),
+      skippedKinds: runtime.composition.skippedKinds.map((kind) => redactStreamKeyOccurrences(kind, streamKey)),
+      stillImageAssetMissingKinds: (runtime.composition.stillImageAssetMissingKinds ?? []).map((kind) =>
+        redactStreamKeyOccurrences(kind, streamKey)
+      )
+    },
+    audioProcessing: runtime.audioProcessing
+      ? {
+          ...runtime.audioProcessing,
+          monitorLastError: redactStreamKeyOccurrences(runtime.audioProcessing.monitorLastError, streamKey)
+        }
+      : undefined
+  };
+};
+
+const formatNativeBitrateController = (runtime: NativeRuntimeTelemetry | null): string => {
+  if (!runtime?.publisher.bitrateAdaptation) {
+    return "not reported";
+  }
+  const adaptation = normalizeNativeRuntimeBitrateAdaptation(runtime?.publisher.bitrateAdaptation);
+  return `owner ${adaptation.controlOwner} / state ${adaptation.controllerState} / effective ${adaptation.effectiveTargetKbps} kbps vs baseline ${adaptation.baselineTargetKbps} kbps / floor ${adaptation.floorTargetKbps} kbps / pending ${adaptation.pendingTargetKbps} kbps / reductions ${adaptation.automaticReductionCount} / restorations ${adaptation.automaticRestorationCount} / generation ${adaptation.publishGeneration} / reconnects ${adaptation.cumulativeReconnectCount}`;
+};
+
+const formatNativeBitrateSamples = (runtime: NativeRuntimeTelemetry | null): string => {
+  if (!runtime?.publisher.bitrateAdaptation) {
+    return "not reported";
+  }
+  const adaptation = normalizeNativeRuntimeBitrateAdaptation(runtime?.publisher.bitrateAdaptation);
+  return `pressure ${adaptation.pressureSampleCount} / healthy ${adaptation.healthySampleCount} / cooldown ${adaptation.cooldownRemainingMs}ms / recovery eligible in ${adaptation.recoveryEligibleInMs}ms`;
+};
+
+const formatNativeBitrateLastDecision = (runtime: NativeRuntimeTelemetry | null): string => {
+  if (!runtime?.publisher.bitrateAdaptation) {
+    return "not reported";
+  }
+  const adaptation = normalizeNativeRuntimeBitrateAdaptation(runtime?.publisher.bitrateAdaptation);
+  return `${formatNativeRuntimeTimestamp(adaptation.lastDecisionAt)} / ${adaptation.lastDecisionReason || "none"}`;
+};
+
+const formatNativeRuntimeTimestamp = (value: number): string => {
+  if (value <= 0) {
+    return "none";
+  }
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : `${value}ms`;
+};
 
 const formatNativeDeviceResources = (runtime: NativeRuntimeTelemetry | null): string => {
   const device = runtime?.device;

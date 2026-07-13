@@ -56,22 +56,37 @@ describe("commercial release bundle verifier CLI", () => {
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v21 is older than the required v57.");
+    expect(result.stdout).toContain("Support bundle v21 is older than the required v58.");
   });
 
-  it("blocks v56 support bundles because native live bitrate proof requires v57", () => {
+  it("blocks v57 support bundles because native adaptive bitrate proof requires v58", () => {
     writeBundle({
       app: {
         name: "MobileLiveCaster",
         reportVersion: 1,
-        bundleVersion: 56
+        bundleVersion: 57
       }
     });
 
     const result = runVerifier();
 
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Support bundle v56 is older than the required v57.");
+    expect(result.stdout).toContain("Support bundle v57 is older than the required v58.");
+  });
+
+  it("rejects string support bundle versions instead of coercing the schema", () => {
+    writeBundle({
+      app: {
+        name: "MobileLiveCaster",
+        reportVersion: 1,
+        bundleVersion: "58"
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[FAIL] Support bundle");
   });
 
   it("blocks support bundles without public launch confirmation summary evidence", () => {
@@ -390,7 +405,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).not.toContain("The latest public launch confirmation was cancelled");
   });
 
-  it("blocks v57 support bundles without scene fingerprint evidence", () => {
+  it("blocks v58 support bundles without scene fingerprint evidence", () => {
     writeBundle({
       summary: {
         sceneFingerprint: undefined
@@ -402,10 +417,10 @@ describe("commercial release bundle verifier CLI", () => {
 
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("Scene fingerprint");
-    expect(result.stdout).toContain("Support bundle v57 is missing scene composition fingerprint evidence.");
+    expect(result.stdout).toContain("Support bundle v58 is missing scene composition fingerprint evidence.");
   });
 
-  it("blocks v57 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v58 support bundles with mismatched scene fingerprints", () => {
     writeBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -421,7 +436,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("Summary and scene fingerprint values do not match.");
   });
 
-  it("blocks v57 support bundles when retained validation runs are from another scene", () => {
+  it("blocks v58 support bundles when retained validation runs are from another scene", () => {
     writeBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -438,7 +453,7 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("do not match the current scene fingerprint scene1-ready");
   });
 
-  it("blocks v57 support bundles without native caption overlay summary evidence", () => {
+  it("blocks v58 support bundles without native caption overlay summary evidence", () => {
     writeBundle({
       summary: {
         nativeCompositionCaptionOverlayCount: undefined
@@ -2014,11 +2029,33 @@ describe("commercial release bundle verifier CLI", () => {
     expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
   });
 
-  it("normalizes missing live-update counts for next-start-only evidence", () => {
+  it("blocks live quality automation claims without native controller ownership and an automatic reduction", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeControlOwner: "none",
+            nativeRuntimeAutomaticReductionCount: 0
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
+  });
+
+  it("blocks next-start-only evidence when a required v58 counter is missing", () => {
     const nextStartOnly = {
       qualityAutomationLiveUpdateCount: undefined,
       qualityAutomationNextTargetCount: 1,
       nativeRuntimeBitrateAdaptationStatus: null,
+      nativeRuntimeControlOwner: "none",
+      nativeRuntimeAutomaticReductionCount: 0,
+      nativeRuntimeAutomaticRestorationCount: 0,
       nativeRuntimeInitialVideoBitrateKbps: 0,
       nativeRuntimeRequestedVideoBitrateKbps: 0,
       nativeRuntimeAppliedVideoBitrateKbps: 0,
@@ -2038,8 +2075,83 @@ describe("commercial release bundle verifier CLI", () => {
 
     const result = runVerifier();
 
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Can release: yes");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS and Android");
+  });
+
+  it.each([
+    ["negative", -1],
+    ["fractional", 0.5]
+  ])("blocks %s quality automation counters", (_label, invalidCount) => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { qualityAutomationLiveUpdateCount: invalidCount }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
+  });
+
+  it("blocks native adaptive bitrate timestamps copied from an older session", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeLastDecisionAt: "2026-06-23T10:00:00.000Z",
+            nativeRuntimeLastVideoBitrateUpdateAt: "2026-06-23T10:00:01.000Z"
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
+  });
+
+  it("blocks live native adaptive bitrate proof without retained session identity", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", { nativeRuntimeSessionId: null }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
+  });
+
+  it("blocks old adaptive decisions even when they fall inside a long retained session", () => {
+    writeBundle({
+      summary: {
+        validationEvidenceRunManifest: [
+          manifestRun("ios", "svr1-ios", {
+            nativeRuntimeSessionStartedAt: "2026-06-23T09:00:00.000Z",
+            nativeRuntimeSessionEndedAt: "2026-06-23T11:00:00.000Z",
+            nativeRuntimeLastDecisionAt: "2026-06-23T09:30:00.000Z",
+            nativeRuntimeLastVideoBitrateUpdateAt: "2026-06-23T09:30:01.000Z"
+          }),
+          manifestRun("android", "svr1-android")
+        ]
+      }
+    });
+
+    const result = runVerifier();
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("controlled weak-network quality automation evidence for iOS");
   });
 
   it("blocks quality automation proof retained under a normal network profile", () => {
@@ -2776,7 +2888,7 @@ const createBundle = (patch = {}) => {
     app: {
       name: "MobileLiveCaster",
       reportVersion: 1,
-      bundleVersion: 57
+      bundleVersion: 58
     },
     generatedAt,
     profile: {
@@ -2826,6 +2938,9 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   transport: "rtmps",
   result: "pass",
   nativeRuntimePlatform: devicePlatform,
+  nativeRuntimeSessionId: `session-${devicePlatform}`,
+  nativeRuntimeSessionStartedAt: "2026-06-23T10:58:00.000Z",
+  nativeRuntimeSessionEndedAt: "2026-06-23T11:00:00.000Z",
   nativeRuntimeStatus: "pass",
   nativeRuntimeAvSyncStatus: "in-sync",
   nativeRuntimeAvSyncSkewMs: 8,
@@ -2971,13 +3086,22 @@ const manifestRun = (devicePlatform, fingerprint, patch = {}) => ({
   qualityAutomationNextTargetCount: 0,
   qualityAutomationFailureCount: 0,
   nativeRuntimeBitrateAdaptationStatus: "reduced",
+  nativeRuntimeControlOwner: "native",
+  nativeRuntimeControllerState: "reduced",
+  nativeRuntimeBaselineTargetKbps: 3_500,
+  nativeRuntimeEffectiveTargetKbps: 2_500,
+  nativeRuntimeFloorTargetKbps: 1_200,
+  nativeRuntimePendingTargetKbps: 0,
+  nativeRuntimeAutomaticReductionCount: 1,
+  nativeRuntimeAutomaticRestorationCount: 0,
+  nativeRuntimeLastDecisionAt: "2026-06-23T10:59:00.000Z",
   nativeRuntimeInitialVideoBitrateKbps: 3_500,
   nativeRuntimeRequestedVideoBitrateKbps: 2_500,
   nativeRuntimeAppliedVideoBitrateKbps: 2_500,
   nativeRuntimeMinimumAppliedVideoBitrateKbps: 2_500,
   nativeRuntimeLiveVideoBitrateUpdateCount: 1,
   nativeRuntimeLiveVideoBitrateUpdateFailureCount: 0,
-  nativeRuntimeLastVideoBitrateUpdateAt: "2026-06-23T00:01:00.000Z",
+  nativeRuntimeLastVideoBitrateUpdateAt: "2026-06-23T10:59:00.000Z",
   platformPublishingPlatform: "youtube-live",
   platformPublishingStatus: "pass",
   platformPublishingFreshnessStatus: "fresh",

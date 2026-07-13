@@ -43,8 +43,10 @@ export interface CommercialReleaseGateOptions {
   maxBundleAgeHours?: number;
 }
 
-const minimumSupportBundleVersion = 57;
+const minimumSupportBundleVersion = 58;
 const defaultMaxBundleAgeHours = 24;
+const nativeAdaptiveBitrateEvidenceMaxAgeMs = 30 * 60 * 1_000;
+const nativeAdaptiveBitrateEvidenceFutureSkewMs = 60 * 1_000;
 
 const destinationTargetPlatformLabels = {
   "youtube-live": "YouTube Live",
@@ -134,7 +136,7 @@ const createBundleVersionIssue = (bundle: SupportBundle): CommercialReleaseGateI
       "Export a fresh MobileLiveCaster support bundle from the release candidate build."
     );
   }
-  if (!Number.isFinite(bundle.app.bundleVersion) || bundle.app.bundleVersion < minimumSupportBundleVersion) {
+  if (!Number.isInteger(bundle.app.bundleVersion) || bundle.app.bundleVersion < minimumSupportBundleVersion) {
     return failIssue(
       "bundle-version",
       "Support bundle",
@@ -280,7 +282,7 @@ const createPublicLaunchConfirmationEvidenceIssue = (bundle: SupportBundle): Com
       "public-launch-confirmation-evidence",
       "Public launch confirmation audit",
       "The support bundle is missing valid public launch confirmation summary evidence.",
-      "Export a support bundle v57 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, native caption overlay kind proof, semantic, eye-mouth, and horizontal-anchor avatar segment proof, same-run ingest timing proof, native encoder backend proof, and RTMP A/V timestamp sync proof are summarized."
+      "Export a support bundle v58 or newer so retained public launch confirmation events, Android publisher mode, audio route-match/latency source/tuning proof, text overlay proof, live caption proof, native caption overlay kind proof, semantic, eye-mouth, and horizontal-anchor avatar segment proof, same-run ingest timing proof, native encoder backend proof, and RTMP A/V timestamp sync proof are summarized."
     );
   }
 
@@ -396,7 +398,7 @@ const createSceneFingerprintIssue = (bundle: SupportBundle): CommercialReleaseGa
     return failIssue(
       "scene-fingerprint-missing",
       "Scene fingerprint",
-      "Support bundle v57 is missing scene composition fingerprint evidence.",
+      "Support bundle v58 is missing scene composition fingerprint evidence.",
       "Export a fresh support bundle from the exact scene/profile intended for release."
     );
   }
@@ -421,7 +423,7 @@ const createNativeCaptionOverlaySummaryIssue = (bundle: SupportBundle): Commerci
     "native-caption-overlay-summary-missing",
     "Native caption overlay evidence",
     "The support bundle is missing native caption overlay count summary evidence.",
-    "Export a support bundle v57 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
+    "Export a support bundle v58 or newer so subtitle and live-caption overlays are retained separately from generic text overlay proof."
   );
 };
 
@@ -507,7 +509,7 @@ const createTextOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "text-overlay-evidence-missing",
       "Text overlay evidence",
       "The support bundle is missing text overlay launch evidence.",
-      "Export a support bundle v57 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
+      "Export a support bundle v58 or newer so visible manual text, subtitle, ticker, live-caption, native caption overlay kind proof, and avatar-overlap overlay evidence is summarized."
     );
   }
 
@@ -573,7 +575,7 @@ const createChatOverlayEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "chat-overlay-evidence-missing",
       "Chat overlay evidence",
       "The support bundle is missing chat overlay launch evidence.",
-      "Export a support bundle v57 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
+      "Export a support bundle v58 or newer so visible chat overlay transparency, URL redaction, layout, safe-area, and avatar-overlap evidence is summarized."
     );
   }
 
@@ -627,7 +629,7 @@ const createLiveCaptionEvidenceIssue = (bundle: SupportBundle): CommercialReleas
       "live-caption-evidence-missing",
       "Live caption evidence",
       "The support bundle is missing live caption launch evidence.",
-      "Export a support bundle v57 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
+      "Export a support bundle v58 or newer so live caption enablement, recognition state, source visibility, cue proof, and native caption overlay kind proof are summarized."
     );
   }
 
@@ -860,7 +862,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-missing",
       "Validation evidence manifest",
       "The retained validation run manifest is missing.",
-      "Export a support bundle v57 or newer after retaining release-candidate validation runs."
+      "Export a support bundle v58 or newer after retaining release-candidate validation runs."
     );
   }
   const manifestScope = createExpectedManifestScope(bundle);
@@ -889,7 +891,7 @@ const createValidationEvidenceManifestIssue = (bundle: SupportBundle): Commercia
       "validation-evidence-manifest-android-publisher-mode",
       "Validation evidence manifest",
       `The latest Android validation manifest row used ${latestRuns.get("android")?.androidPublisherMode || "missing"} publisher mode.`,
-      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v57 or newer."
+      "Repeat Android physical validation with direct MediaCodec selected, then export a support bundle v58 or newer."
     );
   }
   if (manifest.length !== bundle.summary.validationEvidenceRunCount) {
@@ -925,7 +927,7 @@ const createValidationEvidenceSceneManifestIssue = (bundle: SupportBundle): Comm
     "validation-evidence-manifest-scene-fingerprint",
     "Validation evidence manifest",
     `${mismatchedRuns.length} fresh retained validation run(s) do not match the current scene fingerprint ${sceneFingerprint}.`,
-    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v57 support bundle."
+    "Record fresh iOS and Android validation runs from the exact scene composition intended for release, then export a v58 support bundle."
   );
 };
 
@@ -1135,7 +1137,7 @@ const createValidationEvidenceQualityAutomationIssue = (bundle: SupportBundle): 
     "validation-evidence-quality-automation-gap",
     "Weak-network quality automation proof",
     `Missing passing controlled weak-network quality automation evidence for ${[!ios ? "iOS" : "", !android ? "Android" : ""].filter(Boolean).join(" and ")}.`,
-    "Repeat controlled weak-network private validation on both iOS and Android until each retained run proves either a native-applied live bitrate update with zero native failures or a next-start fallback with zero app update failures."
+    "Repeat controlled weak-network private validation on both iOS and Android until each retained run proves either a native-owned automatic bitrate reduction with confirmed application, no pending target, and zero native failures or a next-start fallback with zero app update failures."
   );
 };
 
@@ -1786,25 +1788,83 @@ const hasZeroManifestChatSpeechFailures = (run: ValidationEvidenceManifestRun | 
   run.chatReadoutSpeechFailureCount === 0;
 
 const isManifestQualityAutomationPass = (run: ValidationEvidenceManifestRun | undefined): boolean => {
-  const liveUpdateCount = finiteNumberOrZero(run?.qualityAutomationLiveUpdateCount);
-  const nextTargetCount = finiteNumberOrZero(run?.qualityAutomationNextTargetCount);
-  const nativeLiveUpdateCount = finiteNumberOrZero(run?.nativeRuntimeLiveVideoBitrateUpdateCount);
+  const counters = [
+    run?.qualityAutomationLiveUpdateCount,
+    run?.qualityAutomationNextTargetCount,
+    run?.qualityAutomationFailureCount,
+    run?.nativeRuntimeLiveVideoBitrateUpdateCount,
+    run?.nativeRuntimeLiveVideoBitrateUpdateFailureCount,
+    run?.nativeRuntimeAutomaticReductionCount,
+    run?.nativeRuntimeAutomaticRestorationCount
+  ];
+  if (!counters.every(isNonNegativeInteger)) {
+    return false;
+  }
+  const liveUpdateCount = run?.qualityAutomationLiveUpdateCount ?? 0;
+  const nextTargetCount = run?.qualityAutomationNextTargetCount ?? 0;
+  const nativeLiveUpdateCount = run?.nativeRuntimeLiveVideoBitrateUpdateCount ?? 0;
+  const automaticReductionCount = run?.nativeRuntimeAutomaticReductionCount ?? 0;
+  const automaticRestorationCount = run?.nativeRuntimeAutomaticRestorationCount ?? 0;
+  const nativeAutomaticUpdateCount = automaticReductionCount + automaticRestorationCount;
+  const baselineTargetKbps = finiteNumberOrZero(run?.nativeRuntimeBaselineTargetKbps);
+  const effectiveTargetKbps = finiteNumberOrZero(run?.nativeRuntimeEffectiveTargetKbps);
+  const floorTargetKbps = finiteNumberOrZero(run?.nativeRuntimeFloorTargetKbps);
   const nativeLiveProofPass =
     liveUpdateCount <= 0 ||
-    ((run?.nativeRuntimeBitrateAdaptationStatus === "reduced" || run?.nativeRuntimeBitrateAdaptationStatus === "restored") &&
+    (run?.nativeRuntimeControlOwner === "native" &&
+      Boolean(nonEmptyText(run?.nativeRuntimeControllerState)) &&
+      normalizeStatusLabel(run?.nativeRuntimeControllerState) !== "failed" &&
+      (run?.nativeRuntimeBitrateAdaptationStatus === "reduced" || run?.nativeRuntimeBitrateAdaptationStatus === "restored") &&
+      automaticReductionCount > 0 &&
+      nativeAutomaticUpdateCount >= liveUpdateCount &&
+      nativeLiveUpdateCount >= nativeAutomaticUpdateCount &&
+      baselineTargetKbps > 0 &&
+      floorTargetKbps > 0 &&
+      floorTargetKbps <= effectiveTargetKbps &&
+      effectiveTargetKbps <= baselineTargetKbps &&
+      isZeroFiniteNumber(run?.nativeRuntimePendingTargetKbps) &&
       isPositiveFiniteNumber(run?.nativeRuntimeInitialVideoBitrateKbps) &&
       isPositiveFiniteNumber(run?.nativeRuntimeRequestedVideoBitrateKbps) &&
       isPositiveFiniteNumber(run?.nativeRuntimeAppliedVideoBitrateKbps) &&
       isPositiveFiniteNumber(run?.nativeRuntimeMinimumAppliedVideoBitrateKbps) &&
-      nativeLiveUpdateCount >= liveUpdateCount &&
+      run?.nativeRuntimeAppliedVideoBitrateKbps === effectiveTargetKbps &&
       isZeroFiniteNumber(run?.nativeRuntimeLiveVideoBitrateUpdateFailureCount) &&
-      isNonEmptyIsoDate(run?.nativeRuntimeLastVideoBitrateUpdateAt));
+      hasManifestNativeRuntimeSessionProof(run));
   return (
     isManifestFeaturePass(run?.qualityAutomationStatus) &&
     hasControlledWeakNetworkProfile(run?.networkProfile) &&
     (liveUpdateCount > 0 || nextTargetCount > 0) &&
     isZeroFiniteNumber(run?.qualityAutomationFailureCount) &&
     nativeLiveProofPass
+  );
+};
+
+const hasManifestNativeRuntimeSessionProof = (run: ValidationEvidenceManifestRun | undefined): boolean => {
+  if (!nonEmptyText(run?.nativeRuntimeSessionId)) {
+    return false;
+  }
+  const startedAtMs = Date.parse(String(run?.nativeRuntimeSessionStartedAt ?? ""));
+  const endedAtMs = Date.parse(String(run?.nativeRuntimeSessionEndedAt ?? ""));
+  const decisionAtMs = Date.parse(String(run?.nativeRuntimeLastDecisionAt ?? ""));
+  const updateAtMs = Date.parse(String(run?.nativeRuntimeLastVideoBitrateUpdateAt ?? ""));
+  const createdAtMs = Date.parse(String(run?.createdAt ?? ""));
+  if (![startedAtMs, endedAtMs, decisionAtMs, updateAtMs, createdAtMs].every(Number.isFinite)) {
+    return false;
+  }
+  const evidenceAgeMs = createdAtMs - endedAtMs;
+  const decisionAgeMs = createdAtMs - decisionAtMs;
+  const updateAgeMs = createdAtMs - updateAtMs;
+  return (
+    startedAtMs <= decisionAtMs &&
+    decisionAtMs <= endedAtMs &&
+    startedAtMs <= updateAtMs &&
+    updateAtMs <= endedAtMs &&
+    evidenceAgeMs >= -nativeAdaptiveBitrateEvidenceFutureSkewMs &&
+    evidenceAgeMs <= nativeAdaptiveBitrateEvidenceMaxAgeMs &&
+    decisionAgeMs >= -nativeAdaptiveBitrateEvidenceFutureSkewMs &&
+    decisionAgeMs <= nativeAdaptiveBitrateEvidenceMaxAgeMs &&
+    updateAgeMs >= -nativeAdaptiveBitrateEvidenceFutureSkewMs &&
+    updateAgeMs <= nativeAdaptiveBitrateEvidenceMaxAgeMs
   );
 };
 

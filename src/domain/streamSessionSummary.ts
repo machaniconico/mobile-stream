@@ -11,6 +11,7 @@ import {
   normalizeNativeRuntimeBitrateAdaptation,
   normalizeNativeRuntimeContinuity,
   type NativeRuntimeAvSyncStatus,
+  type NativeRuntimeBitrateAdaptationControlOwner,
   type NativeRuntimeBitrateAdaptationStatus,
   type NativeRuntimeContinuityStatus,
   type NativeRuntimeTelemetry
@@ -139,6 +140,22 @@ export interface StreamSessionNativeRuntimeSummary {
   queuedItems: number;
   cacheSize: number;
   bitrateAdaptationStatus: NativeRuntimeBitrateAdaptationStatus;
+  controlOwner: NativeRuntimeBitrateAdaptationControlOwner;
+  controllerState: string;
+  baselineTargetKbps: number;
+  effectiveTargetKbps: number;
+  floorTargetKbps: number;
+  pendingTargetKbps: number;
+  automaticReductionCount: number;
+  automaticRestorationCount: number;
+  pressureSampleCount: number;
+  healthySampleCount: number;
+  cooldownRemainingMs: number;
+  recoveryEligibleInMs: number;
+  publishGeneration: number;
+  cumulativeReconnectCount: number;
+  lastDecisionAt: number;
+  lastDecisionReason: string;
   initialVideoBitrateKbps: number;
   requestedVideoBitrateKbps: number;
   appliedVideoBitrateKbps: number;
@@ -555,10 +572,23 @@ export const createStreamSessionSummary = ({
   const operationFailureCount = sessionEvents.filter((event) => event.kind === "operation" && event.severity === "fail").length;
   const platformApiEventCount = sessionEvents.filter((event) => event.kind === "platform-api").length;
   const platformApiFailureCount = sessionEvents.filter((event) => event.kind === "platform-api" && event.severity === "fail").length;
-  const qualityEventCount = sessionEvents.filter((event) => event.kind === "quality").length;
-  const qualityLiveUpdateCount = sessionEvents.filter(isQualityLiveUpdateEvent).length;
+  const nativeRuntime = createNativeRuntimeSessionSummary(nativeRuntimeTelemetry);
+  const nativeAutomaticUpdateCount =
+    (nativeRuntime?.automaticReductionCount ?? 0) + (nativeRuntime?.automaticRestorationCount ?? 0);
+  const nativeQualityFailureCount = nativeRuntime?.liveVideoBitrateUpdateFailureCount ?? 0;
+  const qualityLiveUpdateCount = Math.max(
+    sessionEvents.filter(isQualityLiveUpdateEvent).length,
+    nativeAutomaticUpdateCount
+  );
   const qualityNextTargetCount = sessionEvents.filter(isQualityNextTargetEvent).length;
-  const qualityUpdateFailureCount = sessionEvents.filter(isQualityUpdateFailureEvent).length;
+  const qualityUpdateFailureCount = Math.max(
+    sessionEvents.filter(isQualityUpdateFailureEvent).length,
+    nativeQualityFailureCount
+  );
+  const qualityEventCount = Math.max(
+    sessionEvents.filter((event) => event.kind === "quality").length,
+    nativeAutomaticUpdateCount + nativeQualityFailureCount
+  );
   const chatEventCount = sessionEvents.filter((event) => event.kind === "chat").length;
   const chatReconnectEventCount = sessionEvents.filter(isChatReconnectEvent).length;
   const chatReconnectFailureCount = sessionEvents.filter(isChatReconnectFailureEvent).length;
@@ -573,7 +603,6 @@ export const createStreamSessionSummary = ({
       ? currentAudioLevelSamples.filter((sample) => sample.source === "native-pcm")
       : currentAudioLevelSamples
   );
-  const nativeRuntime = createNativeRuntimeSessionSummary(nativeRuntimeTelemetry);
   const outcome = createOutcome(endReason, health, warningCount, failureCount, nativeRuntime, audioLevel, chatSpeechFailureCount);
 
   return {
@@ -715,6 +744,9 @@ const createRecommendation = (
   platformApiFailureCount = 0
 ): string => {
   if (outcome === "clean") {
+    if (nativeRuntime?.controlOwner === "native" && qualityLiveUpdateCount > 0) {
+      return "Keep this run as evidence that the native-owned bitrate controller applied automatic live bitrate changes.";
+    }
     return "Keep this profile as a known-good baseline for the destination.";
   }
 
@@ -727,7 +759,9 @@ const createRecommendation = (
   }
 
   if (qualityUpdateFailureCount > 0) {
-    return "Review native live quality-update support before relying on automatic bitrate/FPS relief in public streams.";
+    return nativeRuntime?.controlOwner === "native"
+      ? "Review the native-owned bitrate controller's failed live updates before relying on automatic bitrate relief in public streams."
+      : "Review native live quality-update support before relying on automatic bitrate/FPS relief in public streams.";
   }
 
   if (platformApiFailureCount > 0) {
@@ -751,7 +785,9 @@ const createRecommendation = (
   }
 
   if (qualityLiveUpdateCount > 0) {
-    return "Keep this run as evidence that live quality automation lowered encoder pressure; repeat if drops continue.";
+    return nativeRuntime?.controlOwner === "native"
+      ? "Keep this run as evidence that the native-owned bitrate controller changed the live target. Lower bitrate/FPS if pressure returns."
+      : "Keep this run as evidence that live quality automation lowered encoder pressure; repeat if drops continue.";
   }
 
   if (audioLevel.clippedSampleCount > 0) {
@@ -810,6 +846,12 @@ export const createNativeRuntimeSessionSummary = (
   const congested = runtime.publisher.congested;
   const bitrateAdaptation = normalizeNativeRuntimeBitrateAdaptation(runtime.publisher.bitrateAdaptation);
   const bitrateAdaptationIssue = bitrateAdaptation.status === "failed" || bitrateAdaptation.failureCount > 0;
+  const controllerState = normalizeBoundedSafeSummaryString(bitrateAdaptation.controllerState, "idle", 64);
+  const lastDecisionReason = normalizeBoundedSafeSummaryString(bitrateAdaptation.lastDecisionReason, "", 160);
+  const bitrateControllerSummary =
+    bitrateAdaptation.controlOwner === "native"
+      ? ` Native-owned bitrate controller ${controllerState}: baseline ${bitrateAdaptation.baselineTargetKbps} kbps, effective ${bitrateAdaptation.effectiveTargetKbps} kbps, floor ${bitrateAdaptation.floorTargetKbps} kbps, pending ${bitrateAdaptation.pendingTargetKbps} kbps; ${bitrateAdaptation.automaticReductionCount} automatic reductions / ${bitrateAdaptation.automaticRestorationCount} restorations; generation ${bitrateAdaptation.publishGeneration}, reconnects ${bitrateAdaptation.cumulativeReconnectCount}.${lastDecisionReason ? ` Last decision: ${lastDecisionReason}.` : ""}`
+      : "";
   const videoEncoderBackend = normalizeSafeSummaryString(runtime.publisher.videoEncoderBackend, "none");
   const audioEncoderBackend = normalizeSafeSummaryString(runtime.publisher.audioEncoderBackend, "none");
   const encoderProbeStatus = runtime.encoderProbe?.status ?? "missing";
@@ -1111,6 +1153,22 @@ export const createNativeRuntimeSessionSummary = (
     queuedItems: normalizeNonNegativeInteger(runtime.publisher.itemsInCache),
     cacheSize: normalizeNonNegativeInteger(runtime.publisher.cacheSize),
     bitrateAdaptationStatus: bitrateAdaptation.status,
+    controlOwner: bitrateAdaptation.controlOwner,
+    controllerState,
+    baselineTargetKbps: bitrateAdaptation.baselineTargetKbps,
+    effectiveTargetKbps: bitrateAdaptation.effectiveTargetKbps,
+    floorTargetKbps: bitrateAdaptation.floorTargetKbps,
+    pendingTargetKbps: bitrateAdaptation.pendingTargetKbps,
+    automaticReductionCount: bitrateAdaptation.automaticReductionCount,
+    automaticRestorationCount: bitrateAdaptation.automaticRestorationCount,
+    pressureSampleCount: bitrateAdaptation.pressureSampleCount,
+    healthySampleCount: bitrateAdaptation.healthySampleCount,
+    cooldownRemainingMs: bitrateAdaptation.cooldownRemainingMs,
+    recoveryEligibleInMs: bitrateAdaptation.recoveryEligibleInMs,
+    publishGeneration: bitrateAdaptation.publishGeneration,
+    cumulativeReconnectCount: bitrateAdaptation.cumulativeReconnectCount,
+    lastDecisionAt: bitrateAdaptation.lastDecisionAt,
+    lastDecisionReason,
     initialVideoBitrateKbps: bitrateAdaptation.initialTargetKbps,
     requestedVideoBitrateKbps: bitrateAdaptation.requestedTargetKbps,
     appliedVideoBitrateKbps: bitrateAdaptation.appliedTargetKbps,
@@ -1185,10 +1243,10 @@ export const createNativeRuntimeSessionSummary = (
     issueCount,
     summary:
       status === "fail"
-        ? `Native runtime ended with a failure on ${runtime.platform}.`
+        ? `Native runtime ended with a failure on ${runtime.platform}.${bitrateControllerSummary}`
         : status === "warn"
-          ? `Native runtime needs review on ${runtime.platform}: queue ${queue}, live bitrate ${bitrateAdaptation.status}, composition ${runtime.composition.status}, continuity ${continuity.status}, A/V sync ${avSync.status}.`
-          : `Native runtime ended clean on ${runtime.platform}.`,
+          ? `Native runtime needs review on ${runtime.platform}: queue ${queue}, live bitrate ${bitrateAdaptation.status}, composition ${runtime.composition.status}, continuity ${continuity.status}, A/V sync ${avSync.status}.${bitrateControllerSummary}`
+          : `Native runtime ended clean on ${runtime.platform}.${bitrateControllerSummary}`,
     recommendation:
       status === "fail"
         ? "Review native runtime publisher/compositor status and run a private ingest test before going public."
@@ -1336,6 +1394,22 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
     return null;
   }
   const fallbackId = createSummaryId(startedAt, endedAt, endReason);
+  const nativeRuntime = normalizeNativeRuntimeSessionSummary(value.nativeRuntime);
+  const nativeAutomaticUpdateCount =
+    (nativeRuntime?.automaticReductionCount ?? 0) + (nativeRuntime?.automaticRestorationCount ?? 0);
+  const nativeQualityFailureCount = nativeRuntime?.liveVideoBitrateUpdateFailureCount ?? 0;
+  const qualityLiveUpdateCount = Math.max(
+    normalizeNonNegativeInteger(value.qualityLiveUpdateCount),
+    nativeAutomaticUpdateCount
+  );
+  const qualityUpdateFailureCount = Math.max(
+    normalizeNonNegativeInteger(value.qualityUpdateFailureCount),
+    nativeQualityFailureCount
+  );
+  const qualityEventCount = Math.max(
+    normalizeNonNegativeInteger(value.qualityEventCount),
+    nativeAutomaticUpdateCount + nativeQualityFailureCount
+  );
 
   return {
     id:
@@ -1354,10 +1428,10 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
     operationFailureCount: normalizeNonNegativeInteger(value.operationFailureCount),
     platformApiEventCount: normalizeNonNegativeInteger(value.platformApiEventCount),
     platformApiFailureCount: normalizeNonNegativeInteger(value.platformApiFailureCount),
-    qualityEventCount: normalizeNonNegativeInteger(value.qualityEventCount),
-    qualityLiveUpdateCount: normalizeNonNegativeInteger(value.qualityLiveUpdateCount),
+    qualityEventCount,
+    qualityLiveUpdateCount,
     qualityNextTargetCount: normalizeNonNegativeInteger(value.qualityNextTargetCount),
-    qualityUpdateFailureCount: normalizeNonNegativeInteger(value.qualityUpdateFailureCount),
+    qualityUpdateFailureCount,
     chatEventCount: normalizeNonNegativeInteger(value.chatEventCount),
     chatReconnectEventCount: normalizeNonNegativeInteger(value.chatReconnectEventCount),
     chatReconnectFailureCount: normalizeNonNegativeInteger(value.chatReconnectFailureCount),
@@ -1366,7 +1440,7 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
     chatSpeechFailureCount: normalizeNonNegativeInteger(value.chatSpeechFailureCount),
     health,
     audioLevel: normalizeAudioLevelSummary(value.audioLevel),
-    nativeRuntime: normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
+    nativeRuntime,
     summary:
       typeof value.summary === "string"
         ? normalizeSafeSummaryString(value.summary, "")
@@ -1374,14 +1448,14 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
             outcome,
             endReason,
             health,
-            normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
+            nativeRuntime,
             normalizeAudioLevelSummary(value.audioLevel),
             normalizeNonNegativeInteger(value.chatReconnectEventCount),
             normalizeNonNegativeInteger(value.chatSpeechSpokenCount),
             normalizeNonNegativeInteger(value.chatSpeechFailureCount),
-            normalizeNonNegativeInteger(value.qualityLiveUpdateCount),
+            qualityLiveUpdateCount,
             normalizeNonNegativeInteger(value.qualityNextTargetCount),
-            normalizeNonNegativeInteger(value.qualityUpdateFailureCount),
+            qualityUpdateFailureCount,
             normalizeNonNegativeInteger(value.platformApiEventCount),
             normalizeNonNegativeInteger(value.platformApiFailureCount)
           ),
@@ -1394,13 +1468,13 @@ const normalizeStreamSessionSummary = (value: unknown): StreamSessionSummary | n
             health,
             0,
             0,
-            normalizeNativeRuntimeSessionSummary(value.nativeRuntime),
+            nativeRuntime,
             normalizeNonNegativeInteger(value.chatReconnectEventCount),
             normalizeNonNegativeInteger(value.chatReconnectFailureCount),
             normalizeAudioLevelSummary(value.audioLevel),
             normalizeNonNegativeInteger(value.chatSpeechFailureCount),
-            normalizeNonNegativeInteger(value.qualityLiveUpdateCount),
-            normalizeNonNegativeInteger(value.qualityUpdateFailureCount),
+            qualityLiveUpdateCount,
+            qualityUpdateFailureCount,
             normalizeNonNegativeInteger(value.platformApiFailureCount)
           )
   };
@@ -1478,6 +1552,15 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     1,
     normalizeNonNegativeInteger(value.avSyncWarningThresholdMs) || 150
   );
+  const controlOwner: NativeRuntimeBitrateAdaptationControlOwner = value.controlOwner === "native" ? "native" : "none";
+  const controllerState = normalizeBoundedSafeSummaryString(value.controllerState, "idle", 64);
+  const baselineTargetKbps = normalizeNonNegativeInteger(value.baselineTargetKbps);
+  const effectiveTargetKbps = normalizeNonNegativeInteger(value.effectiveTargetKbps);
+  const floorTargetKbps = normalizeNonNegativeInteger(value.floorTargetKbps);
+  const pendingTargetKbps = normalizeNonNegativeInteger(value.pendingTargetKbps);
+  const automaticReductionCount = normalizeNonNegativeInteger(value.automaticReductionCount);
+  const automaticRestorationCount = normalizeNonNegativeInteger(value.automaticRestorationCount);
+  const lastDecisionReason = normalizeBoundedSafeSummaryString(value.lastDecisionReason, "", 160);
 
   return {
     platform,
@@ -1576,6 +1659,22 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
       value.bitrateAdaptationStatus === "failed"
         ? value.bitrateAdaptationStatus
         : "unknown",
+    controlOwner,
+    controllerState,
+    baselineTargetKbps,
+    effectiveTargetKbps,
+    floorTargetKbps,
+    pendingTargetKbps,
+    automaticReductionCount,
+    automaticRestorationCount,
+    pressureSampleCount: normalizeNonNegativeInteger(value.pressureSampleCount),
+    healthySampleCount: normalizeNonNegativeInteger(value.healthySampleCount),
+    cooldownRemainingMs: normalizeNonNegativeInteger(value.cooldownRemainingMs),
+    recoveryEligibleInMs: normalizeNonNegativeInteger(value.recoveryEligibleInMs),
+    publishGeneration: normalizeNonNegativeInteger(value.publishGeneration),
+    cumulativeReconnectCount: normalizeNonNegativeInteger(value.cumulativeReconnectCount),
+    lastDecisionAt: normalizeNonNegativeInteger(value.lastDecisionAt),
+    lastDecisionReason,
     initialVideoBitrateKbps: normalizeNonNegativeInteger(value.initialVideoBitrateKbps),
     requestedVideoBitrateKbps: normalizeNonNegativeInteger(value.requestedVideoBitrateKbps),
     appliedVideoBitrateKbps: normalizeNonNegativeInteger(value.appliedVideoBitrateKbps),
@@ -1668,11 +1767,15 @@ export const normalizeNativeRuntimeSessionSummary = (value: unknown): StreamSess
     summary:
       typeof value.summary === "string"
         ? normalizeSafeSummaryString(value.summary, "")
-        : `Native runtime ${status} on ${platform}.`,
+        : controlOwner === "native"
+          ? `Native runtime ${status} on ${platform}. Native-owned bitrate controller ${controllerState}: baseline ${baselineTargetKbps} kbps, effective ${effectiveTargetKbps} kbps, floor ${floorTargetKbps} kbps, pending ${pendingTargetKbps} kbps; ${automaticReductionCount} automatic reductions / ${automaticRestorationCount} restorations.${lastDecisionReason ? ` Last decision: ${lastDecisionReason}.` : ""}`
+          : `Native runtime ${status} on ${platform}.`,
     recommendation:
       typeof value.recommendation === "string"
         ? normalizeSafeSummaryString(value.recommendation, "")
-        : "Review native runtime evidence before public launch."
+        : controlOwner === "native"
+          ? "Review native-owned bitrate controller evidence before public launch."
+          : "Review native runtime evidence before public launch."
   };
 };
 
@@ -1748,6 +1851,9 @@ const normalizeAudioMeterLevel = (value: unknown): number =>
 
 const normalizeSafeSummaryString = (value: unknown, fallback: string): string =>
   typeof value === "string" && value.trim() ? redactSecretsFromText(value) : fallback;
+
+const normalizeBoundedSafeSummaryString = (value: unknown, fallback: string, maxLength: number): string =>
+  normalizeSafeSummaryString(value, fallback).slice(0, Math.max(0, maxLength));
 
 const normalizeStringArray = (value: unknown): string[] =>
   Array.isArray(value)

@@ -4,7 +4,8 @@ import { createStreamHealthSample, summarizeStreamHealthHistory, type StreamHeal
 import { createStreamQualityAdvisor } from "./streamQualityAdvisor";
 import {
   createAppliedStreamQualityAutomationDecision,
-  createStreamQualityAutomationDecision
+  createStreamQualityAutomationDecision,
+  deferNativeOwnedBitrateDecision
 } from "./streamQualityAutomation";
 import { createStreamQualityIncidents } from "./streamQualityIncidents";
 import { createStreamRecoveryStatus } from "./streamRecovery";
@@ -115,6 +116,50 @@ describe("stream quality automation", () => {
     expect(decision.command).toBe("apply-live-target");
     expect(decision.severity).toBe("warn");
     expect(decision.suggestedTarget?.profileId).toBe("quality-balanced");
+  });
+
+  it("defers bitrate-only live changes to the native session controller", () => {
+    const advisor = advisorFor(quality("quality-balanced"), {
+      bitrateKbps: 900,
+      fps: 30,
+      droppedFrames: 3
+    });
+    const decision = createStreamQualityAutomationDecision({
+      advisor,
+      streamStatus: "live",
+      elapsedSeconds: 20,
+      canApplyLiveTarget: true
+    });
+
+    expect(decision.command).toBe("apply-live-target");
+    const deferred = deferNativeOwnedBitrateDecision(decision, true);
+    expect(deferred.command).toBe("none");
+    expect(deferred.key).toBeNull();
+    expect(deferred.title).toBe("Native quality control active");
+  });
+
+  it("removes the bitrate change while retaining a live FPS decision", () => {
+    const advisor = advisorFor(quality("quality-motion"), {
+      bitrateKbps: 1200,
+      fps: 18,
+      droppedFrames: 2
+    });
+    const decision = createStreamQualityAutomationDecision({
+      advisor,
+      streamStatus: "live",
+      elapsedSeconds: 20,
+      canApplyLiveTarget: true
+    });
+
+    expect(decision.suggestedTarget?.fps).not.toBe(decision.currentTarget.fps);
+    const delegated = deferNativeOwnedBitrateDecision(decision, true);
+    expect(delegated.command).toBe("apply-live-target");
+    expect(delegated.suggestedTarget).toMatchObject({
+      profileId: null,
+      fps: 30,
+      videoBitrateKbps: decision.currentTarget.videoBitrateKbps
+    });
+    expect(delegated.summary).toContain("native bitrate control remains active");
   });
 
   it("arms a 30 fps restart target when live FPS changes are unsupported", () => {

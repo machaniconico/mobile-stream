@@ -481,13 +481,13 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v56 support bundles because native live bitrate proof requires v57", () => {
+  it("blocks v57 support bundles because native adaptive bitrate proof requires v58", () => {
     const gate = createCommercialReleaseGate(
       supportBundle({
         app: {
           name: "MobileLiveCaster",
           reportVersion: 1,
-          bundleVersion: 56
+          bundleVersion: 57
         }
       }),
       { now }
@@ -497,12 +497,22 @@ describe("commercial release gate", () => {
     expect(gate.issues).toContainEqual(
       expect.objectContaining({
         code: "bundle-version",
-        detail: "Support bundle v56 is older than the required v57."
+        detail: "Support bundle v57 is older than the required v58."
       })
     );
   });
 
-  it("blocks v57 support bundles without scene fingerprint evidence", () => {
+  it("rejects string support bundle versions instead of coercing the schema", () => {
+    const bundle = supportBundle();
+    (bundle.app as { bundleVersion: unknown }).bundleVersion = "58";
+
+    const gate = createCommercialReleaseGate(bundle, { now });
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(expect.objectContaining({ code: "bundle-version" }));
+  });
+
+  it("blocks v58 support bundles without scene fingerprint evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).sceneFingerprint;
     delete (bundle.scene as Partial<SupportBundle["scene"]>).fingerprint;
@@ -516,7 +526,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v57 support bundles with mismatched scene fingerprints", () => {
+  it("blocks v58 support bundles with mismatched scene fingerprints", () => {
     const bundle = supportBundle({
       summary: {
         sceneFingerprint: "scene1-summary"
@@ -533,7 +543,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v57 support bundles when retained validation runs are from another scene", () => {
+  it("blocks v58 support bundles when retained validation runs are from another scene", () => {
     const bundle = supportBundle({
       summary: {
         validationEvidenceRunManifest: [
@@ -552,7 +562,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v57 text overlay evidence", () => {
+  it("blocks support bundles without v58 text overlay evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).textOverlayStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -565,7 +575,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v57 chat overlay evidence", () => {
+  it("blocks support bundles without v58 chat overlay evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).chatOverlayStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -578,7 +588,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks support bundles without v57 live caption evidence", () => {
+  it("blocks support bundles without v58 live caption evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).liveCaptionStatus;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -591,7 +601,7 @@ describe("commercial release gate", () => {
     );
   });
 
-  it("blocks v57 support bundles without native caption overlay summary evidence", () => {
+  it("blocks v58 support bundles without native caption overlay summary evidence", () => {
     const bundle = supportBundle();
     delete (bundle.summary as Partial<SupportBundle["summary"]>).nativeCompositionCaptionOverlayCount;
     const gate = createCommercialReleaseGate(bundle, { now });
@@ -2914,11 +2924,41 @@ describe("commercial release gate", () => {
     );
   });
 
+  it("blocks live quality automation claims without native controller ownership and an automatic reduction", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeControlOwner: "none",
+              nativeRuntimeAutomaticReductionCount: 0
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({
+        code: "validation-evidence-quality-automation-gap",
+        detail: expect.stringContaining("iOS")
+      })
+    );
+  });
+
   it("accepts next-start-only quality automation without inventing native live update proof", () => {
     const nextStartOnly = {
       qualityAutomationLiveUpdateCount: 0,
       qualityAutomationNextTargetCount: 1,
       nativeRuntimeBitrateAdaptationStatus: null,
+      nativeRuntimeControlOwner: "none",
+      nativeRuntimeAutomaticReductionCount: 0,
+      nativeRuntimeAutomaticRestorationCount: 0,
       nativeRuntimeInitialVideoBitrateKbps: 0,
       nativeRuntimeRequestedVideoBitrateKbps: 0,
       nativeRuntimeAppliedVideoBitrateKbps: 0,
@@ -2942,7 +2982,7 @@ describe("commercial release gate", () => {
     expect(gate.status).toBe("ready");
   });
 
-  it("normalizes missing live-update counts consistently for next-start-only evidence", () => {
+  it("blocks next-start-only evidence when a required v58 counter is missing", () => {
     const iosRun = manifestRun({
       devicePlatform: "ios",
       fingerprint: "svr1-ios",
@@ -2975,7 +3015,109 @@ describe("commercial release gate", () => {
       { now }
     );
 
-    expect(gate.status).toBe("ready");
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({ code: "validation-evidence-quality-automation-gap" })
+    );
+  });
+
+  it.each([
+    ["negative", -1],
+    ["fractional", 0.5]
+  ])("blocks %s quality automation counters", (_label, invalidCount) => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              qualityAutomationLiveUpdateCount: invalidCount
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({ code: "validation-evidence-quality-automation-gap" })
+    );
+  });
+
+  it("blocks native adaptive bitrate timestamps copied from an older session", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeLastDecisionAt: "2026-06-23T10:00:00.000Z",
+              nativeRuntimeLastVideoBitrateUpdateAt: "2026-06-23T10:00:01.000Z"
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({ code: "validation-evidence-quality-automation-gap" })
+    );
+  });
+
+  it("blocks live native adaptive bitrate proof without retained session identity", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeSessionId: null
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({ code: "validation-evidence-quality-automation-gap" })
+    );
+  });
+
+  it("blocks old adaptive decisions even when they fall inside a long retained session", () => {
+    const gate = createCommercialReleaseGate(
+      supportBundle({
+        summary: {
+          validationEvidenceRunManifest: [
+            manifestRun({
+              devicePlatform: "ios",
+              fingerprint: "svr1-ios",
+              nativeRuntimeSessionStartedAt: "2026-06-23T09:00:00.000Z",
+              nativeRuntimeSessionEndedAt: "2026-06-23T11:00:00.000Z",
+              nativeRuntimeLastDecisionAt: "2026-06-23T09:30:00.000Z",
+              nativeRuntimeLastVideoBitrateUpdateAt: "2026-06-23T09:30:01.000Z"
+            }),
+            manifestRun({ devicePlatform: "android", fingerprint: "svr1-android" })
+          ]
+        }
+      }),
+      { now }
+    );
+
+    expect(gate.status).toBe("blocked");
+    expect(gate.issues).toContainEqual(
+      expect.objectContaining({ code: "validation-evidence-quality-automation-gap" })
+    );
   });
 
   it("blocks release when quality automation proof was recorded under a normal network profile", () => {
@@ -3975,7 +4117,7 @@ const supportBundle = ({
   app = {
     name: "MobileLiveCaster" as const,
     reportVersion: 1 as const,
-    bundleVersion: 57 as const
+    bundleVersion: 58 as const
   },
   generatedAt = "2026-06-23T11:30:00.000Z",
   destination = {
@@ -4283,6 +4425,9 @@ const manifestRun = ({
   targetPlatform = "YouTube Live",
   transport = "rtmps",
   nativeRuntimePlatform,
+  nativeRuntimeSessionId = `session-${devicePlatform}`,
+  nativeRuntimeSessionStartedAt = "2026-06-23T10:58:00.000Z",
+  nativeRuntimeSessionEndedAt = "2026-06-23T11:00:00.000Z",
   androidPublisherMode = devicePlatform === "android" ? "mediacodec" : null,
   nativeRuntimeStatus = "pass",
   nativeRuntimeContinuityStatus = "healthy",
@@ -4307,6 +4452,22 @@ const manifestRun = ({
   nativeRuntimeQueuedItems = 0,
   nativeRuntimeCacheSize = 0,
   nativeRuntimeBitrateAdaptationStatus = "reduced",
+  nativeRuntimeControlOwner = "native",
+  nativeRuntimeControllerState = "reduced",
+  nativeRuntimeBaselineTargetKbps = 3_500,
+  nativeRuntimeEffectiveTargetKbps = 2_500,
+  nativeRuntimeFloorTargetKbps = 1_200,
+  nativeRuntimePendingTargetKbps = 0,
+  nativeRuntimeAutomaticReductionCount = 1,
+  nativeRuntimeAutomaticRestorationCount = 0,
+  nativeRuntimePressureSampleCount = 0,
+  nativeRuntimeHealthySampleCount = 0,
+  nativeRuntimeCooldownRemainingMs = 0,
+  nativeRuntimeRecoveryEligibleInMs = 0,
+  nativeRuntimePublishGeneration = 1,
+  nativeRuntimeCumulativeReconnectCount = 0,
+  nativeRuntimeLastDecisionAt = "2026-06-23T11:00:00.000Z",
+  nativeRuntimeLastDecisionReason = "Publisher queue pressure remained elevated.",
   nativeRuntimeInitialVideoBitrateKbps = 3_500,
   nativeRuntimeRequestedVideoBitrateKbps = 2_500,
   nativeRuntimeAppliedVideoBitrateKbps = 2_500,
@@ -4501,6 +4662,9 @@ const manifestRun = ({
   nativeRuntimeAvSyncCriticalIncidentCount?: ValidationManifestRun["nativeRuntimeAvSyncCriticalIncidentCount"];
   nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples?: ValidationManifestRun["nativeRuntimeAvSyncMaxConsecutiveOutOfSyncSamples"];
   nativeRuntimePlatform?: ValidationManifestRun["nativeRuntimePlatform"];
+  nativeRuntimeSessionId?: ValidationManifestRun["nativeRuntimeSessionId"];
+  nativeRuntimeSessionStartedAt?: ValidationManifestRun["nativeRuntimeSessionStartedAt"];
+  nativeRuntimeSessionEndedAt?: ValidationManifestRun["nativeRuntimeSessionEndedAt"];
   androidPublisherMode?: ValidationManifestRun["androidPublisherMode"];
   nativeRuntimeStatus?: ValidationManifestRun["nativeRuntimeStatus"];
   nativeRuntimeVideoEncoderBackend?: ValidationManifestRun["nativeRuntimeVideoEncoderBackend"];
@@ -4512,6 +4676,22 @@ const manifestRun = ({
   nativeRuntimeQueuedItems?: ValidationManifestRun["nativeRuntimeQueuedItems"];
   nativeRuntimeCacheSize?: ValidationManifestRun["nativeRuntimeCacheSize"];
   nativeRuntimeBitrateAdaptationStatus?: ValidationManifestRun["nativeRuntimeBitrateAdaptationStatus"];
+  nativeRuntimeControlOwner?: ValidationManifestRun["nativeRuntimeControlOwner"];
+  nativeRuntimeControllerState?: ValidationManifestRun["nativeRuntimeControllerState"];
+  nativeRuntimeBaselineTargetKbps?: ValidationManifestRun["nativeRuntimeBaselineTargetKbps"];
+  nativeRuntimeEffectiveTargetKbps?: ValidationManifestRun["nativeRuntimeEffectiveTargetKbps"];
+  nativeRuntimeFloorTargetKbps?: ValidationManifestRun["nativeRuntimeFloorTargetKbps"];
+  nativeRuntimePendingTargetKbps?: ValidationManifestRun["nativeRuntimePendingTargetKbps"];
+  nativeRuntimeAutomaticReductionCount?: ValidationManifestRun["nativeRuntimeAutomaticReductionCount"];
+  nativeRuntimeAutomaticRestorationCount?: ValidationManifestRun["nativeRuntimeAutomaticRestorationCount"];
+  nativeRuntimePressureSampleCount?: ValidationManifestRun["nativeRuntimePressureSampleCount"];
+  nativeRuntimeHealthySampleCount?: ValidationManifestRun["nativeRuntimeHealthySampleCount"];
+  nativeRuntimeCooldownRemainingMs?: ValidationManifestRun["nativeRuntimeCooldownRemainingMs"];
+  nativeRuntimeRecoveryEligibleInMs?: ValidationManifestRun["nativeRuntimeRecoveryEligibleInMs"];
+  nativeRuntimePublishGeneration?: ValidationManifestRun["nativeRuntimePublishGeneration"];
+  nativeRuntimeCumulativeReconnectCount?: ValidationManifestRun["nativeRuntimeCumulativeReconnectCount"];
+  nativeRuntimeLastDecisionAt?: ValidationManifestRun["nativeRuntimeLastDecisionAt"];
+  nativeRuntimeLastDecisionReason?: ValidationManifestRun["nativeRuntimeLastDecisionReason"];
   nativeRuntimeInitialVideoBitrateKbps?: ValidationManifestRun["nativeRuntimeInitialVideoBitrateKbps"];
   nativeRuntimeRequestedVideoBitrateKbps?: ValidationManifestRun["nativeRuntimeRequestedVideoBitrateKbps"];
   nativeRuntimeAppliedVideoBitrateKbps?: ValidationManifestRun["nativeRuntimeAppliedVideoBitrateKbps"];
@@ -4697,6 +4877,9 @@ const manifestRun = ({
   transport,
   result,
   nativeRuntimePlatform: nativeRuntimePlatform ?? devicePlatform,
+  nativeRuntimeSessionId,
+  nativeRuntimeSessionStartedAt,
+  nativeRuntimeSessionEndedAt,
   nativeRuntimeStatus,
   nativeRuntimeContinuityStatus,
   nativeRuntimeVideoStallCount,
@@ -4720,6 +4903,22 @@ const manifestRun = ({
   nativeRuntimeQueuedItems,
   nativeRuntimeCacheSize,
   nativeRuntimeBitrateAdaptationStatus,
+  nativeRuntimeControlOwner,
+  nativeRuntimeControllerState,
+  nativeRuntimeBaselineTargetKbps,
+  nativeRuntimeEffectiveTargetKbps,
+  nativeRuntimeFloorTargetKbps,
+  nativeRuntimePendingTargetKbps,
+  nativeRuntimeAutomaticReductionCount,
+  nativeRuntimeAutomaticRestorationCount,
+  nativeRuntimePressureSampleCount,
+  nativeRuntimeHealthySampleCount,
+  nativeRuntimeCooldownRemainingMs,
+  nativeRuntimeRecoveryEligibleInMs,
+  nativeRuntimePublishGeneration,
+  nativeRuntimeCumulativeReconnectCount,
+  nativeRuntimeLastDecisionAt,
+  nativeRuntimeLastDecisionReason,
   nativeRuntimeInitialVideoBitrateKbps,
   nativeRuntimeRequestedVideoBitrateKbps,
   nativeRuntimeAppliedVideoBitrateKbps,

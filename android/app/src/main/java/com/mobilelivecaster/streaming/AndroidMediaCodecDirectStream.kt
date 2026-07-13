@@ -73,6 +73,8 @@ internal class AndroidMediaCodecDirectStream(
     private var droppedAudioFrames = 0L
     @Volatile
     private var lastError = ""
+    @Volatile
+    private var lastNonFatalError = ""
     private val videoEncoderCommandLock = Any()
     private var videoEncoderGeneration = 0L
     private var pendingVideoEncoderCommand: VideoEncoderCommand? = null
@@ -105,6 +107,7 @@ internal class AndroidMediaCodecDirectStream(
         }
         audioSubmittedFrames = 0L
         lastError = ""
+        lastNonFatalError = ""
         micProcessingEffect = MicProcessingEffect(
             appContext,
             nextProfile.micEffects,
@@ -254,13 +257,16 @@ internal class AndroidMediaCodecDirectStream(
             sentVideoFrames = publisherSnapshot.sentVideoFrames,
             sentAudioFrames = publisherSnapshot.sentAudioFrames,
             droppedVideoFrames = counters.droppedVideoFrames + counters.compositionDroppedFrames + publisherSnapshot.droppedVideoFrames,
+            publisherDroppedVideoFrames = publisherSnapshot.droppedVideoFrames,
             droppedAudioFrames = counters.droppedAudioFrames + publisherSnapshot.droppedAudioFrames,
             cacheSize = publisherSnapshot.cacheSize,
             itemsInCache = publisherSnapshot.itemsInCache,
             congested = publisherSnapshot.congested,
             avSync = publisherSnapshot.avSync,
             audioProcessing = micProcessingEffect?.snapshot(),
-            lastError = lastError.ifBlank { publisherSnapshot.lastError }
+            lastError = lastError
+                .ifBlank { publisherSnapshot.lastError }
+                .ifBlank { lastNonFatalError }
         )
     }
 
@@ -334,26 +340,45 @@ internal class AndroidMediaCodecDirectStream(
                 ?.takeIf { it.generation == videoEncoderGeneration }
                 ?.also { pendingVideoEncoderCommand = null }
         } ?: return
-        val encoder = videoEncoder ?: return
-        runCatching {
-            command.videoBitrate?.let { bitrate ->
-                encoder.setParameters(Bundle().apply {
-                    putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate)
-                })
-            }
-            if (command.requestKeyFrame) {
-                encoder.setParameters(Bundle().apply {
-                    putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
-                })
-            }
-            command.videoBitrate?.let { bitrate ->
-                liveVideoBitrateTracker.recordApplied(bitrate / 1_000)
-            }
-        }.onFailure { error ->
+        val encoder = videoEncoder
+        if (encoder == null) {
             command.videoBitrate?.let { bitrate ->
                 liveVideoBitrateTracker.recordFailure(bitrate / 1_000)
             }
+            lastError = "Direct MediaCodec video encoder is unavailable"
+            return
+        }
+        val bitrate = command.videoBitrate
+        val result = if (bitrate != null) {
+            executeTrackedNativeVideoBitrateUpdate(
+                targetKbps = bitrate / 1_000,
+                tracker = liveVideoBitrateTracker,
+                applyBitrate = {
+                    encoder.setParameters(Bundle().apply {
+                        putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, bitrate)
+                    })
+                },
+                afterBitrateApplied = { requestVideoKeyFrame(encoder, command.requestKeyFrame) }
+            )
+        } else {
+            executeNativeVideoBitrateUpdate(
+                applyBitrate = {},
+                afterBitrateApplied = { requestVideoKeyFrame(encoder, command.requestKeyFrame) }
+            )
+        }
+        result.bitrateFailure?.let { error ->
             lastError = safeMessage(error)
+        }
+        if (result.bitrateApplied) {
+            lastNonFatalError = result.ancillaryFailure?.let(::safeMessage) ?: ""
+        }
+    }
+
+    private fun requestVideoKeyFrame(encoder: MediaCodec, requested: Boolean) {
+        if (requested) {
+            encoder.setParameters(Bundle().apply {
+                putInt(MediaCodec.PARAMETER_KEY_REQUEST_SYNC_FRAME, 0)
+            })
         }
     }
 
@@ -604,6 +629,7 @@ data class AndroidMediaCodecDirectStreamSnapshot(
     val sentVideoFrames: Long,
     val sentAudioFrames: Long,
     val droppedVideoFrames: Long,
+    val publisherDroppedVideoFrames: Long,
     val droppedAudioFrames: Long,
     val cacheSize: Int,
     val itemsInCache: Int,
