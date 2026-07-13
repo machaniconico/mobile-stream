@@ -75,6 +75,47 @@ class NativeAdaptiveBitrateControllerTest {
     }
 
     @Test
+    fun warningMemoryPressureUsesTheShorterHoldAndRetainsTheReason() {
+        val controller = controller()
+        controller.evaluate(sample(0, generation = 1))
+
+        assertNull(controller.evaluate(sample(10, memoryPressureState = "warning")))
+        val decision = controller.evaluate(sample(11, memoryPressureState = "warning"))
+
+        assertEquals("reduce", decision?.type)
+        assertEquals(2_800, decision?.targetKbps)
+        assertEquals("The operating system reported sustained memory pressure.", decision?.reason)
+    }
+
+    @Test
+    fun criticalMemoryPressureBypassesStartupGraceAndUsesTheSafetyFloor() {
+        val controller = controller()
+
+        val decision = controller.evaluate(sample(0, generation = 1, memoryPressureState = "critical"))
+
+        assertEquals("reduce", decision?.type)
+        assertEquals(1_200, decision?.targetKbps)
+        assertEquals(
+            "The operating system reported critical memory pressure; bitrate was reduced to the safety floor.",
+            decision?.reason
+        )
+    }
+
+    @Test
+    fun criticalMemoryReasonWinsWhenBothResourceSignalsAreCritical() {
+        val controller = controller()
+
+        val decision = controller.evaluate(
+            sample(0, generation = 1, thermalState = "critical", memoryPressureState = "critical")
+        )
+
+        assertEquals(
+            "The operating system reported critical memory pressure; bitrate was reduced to the safety floor.",
+            decision?.reason
+        )
+    }
+
+    @Test
     fun criticalThermalPressureBypassesAnExistingReductionCooldown() {
         val controller = controller()
         controller.evaluate(sample(0, generation = 1))
@@ -291,6 +332,41 @@ class NativeAdaptiveBitrateControllerTest {
     }
 
     @Test
+    fun blocksRecoveryWhileMemoryPressureRemainsElevated() {
+        val controller = controller()
+        controller.evaluate(sample(0, generation = 1, memoryPressureState = "critical"))
+        controller.recordApplied(1_200)
+
+        for (second in 1..50) {
+            assertNull(controller.evaluate(sample(second, bitrateKbps = 2_700, memoryPressureState = "warning")))
+        }
+        assertEquals(1_200, controller.snapshot(50_000).effectiveTargetKbps)
+
+        var recovery: NativeAdaptiveBitrateDecision? = null
+        for (second in 51..80) {
+            recovery = controller.evaluate(
+                sample(second, bitrateKbps = 2_700, memoryPressureState = "normal")
+            ) ?: recovery
+        }
+        assertEquals("restore", recovery?.type)
+    }
+
+    @Test
+    fun elevatedMemoryPressureTreatsAHigherManualBaselineAsARecoveryCeiling() {
+        val controller = controller()
+        controller.evaluate(sample(0, generation = 1, memoryPressureState = "critical"))
+        controller.recordApplied(1_200)
+
+        val target = controller.requestBaselineChange(6_000, memoryPressureState = "warning")
+
+        assertEquals(1_200, target)
+        controller.recordApplied(target)
+        val snapshot = controller.snapshot(2_000)
+        assertEquals(6_000, snapshot.baselineTargetKbps)
+        assertEquals(1_200, snapshot.effectiveTargetKbps)
+    }
+
+    @Test
     fun stopsAfterNativeApplicationFailure() {
         val controller = controller()
         controller.recordFailure("encoder rejected target", 5_000)
@@ -406,7 +482,8 @@ class NativeAdaptiveBitrateControllerTest {
         bitrateKbps: Int = 3_400,
         useMeasuredBitrate: Boolean = true,
         reconnectCount: Int = generation - 1,
-        thermalState: String = "nominal"
+        thermalState: String = "nominal",
+        memoryPressureState: String = "normal"
     ) = NativeAdaptiveBitrateSample(
         nowElapsedMs = second * 1_000L,
         nowWallMs = 1_700_000_000_000L + second * 1_000L,
@@ -419,6 +496,7 @@ class NativeAdaptiveBitrateControllerTest {
         useMeasuredBitrate = useMeasuredBitrate,
         droppedVideoFrames = 0,
         cumulativeReconnectCount = reconnectCount,
-        thermalState = thermalState
+        thermalState = thermalState,
+        memoryPressureState = memoryPressureState
     )
 }

@@ -57,6 +57,7 @@ export const createStreamQualityAdvisor = ({
   const hasWarningIncident = incidents.some((incident) => incident.severity === "warn");
   const hasReconnectRisk = hasAnyIncident(incidents, ["reconnects"]) || history.observedReconnectAttempts > 0;
   const hasCriticalDevicePressure = hasAnyIncident(incidents, ["thermal-critical", "battery-critical"]);
+  const hasCriticalMemoryPressure = hasAnyIncident(incidents, ["memory-critical"]);
 
   if (recovery.recommendedAction === "stop") {
     return createRecommendation({
@@ -78,6 +79,19 @@ export const createStreamQualityAdvisor = ({
       reason: incidentReason(incidents),
       recommendation:
         "Cool the device or connect stable power before continuing. Do not rely on an automatic quality change when shutdown risk is critical.",
+      currentTarget,
+      suggestedTarget
+    });
+  }
+
+  if (hasCriticalMemoryPressure) {
+    return createRecommendation({
+      action: "stop",
+      severity: "fail",
+      summary: "Stop recommended for critical memory pressure.",
+      reason: incidentReason(incidents),
+      recommendation:
+        "Stop the stream, close other apps, then restart with fewer scene sources and the suggested lower quality target.",
       currentTarget,
       suggestedTarget
     });
@@ -214,6 +228,8 @@ const chooseLowerProfile = (
       "thermal-fair",
       "thermal-serious",
       "thermal-critical",
+      "memory-warning",
+      "memory-critical",
       "battery-low",
       "battery-critical",
       "low-power-mode"

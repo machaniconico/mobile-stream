@@ -3,6 +3,7 @@ import AVFoundation
 import React
 import ReplayKit
 import UIKit
+import os
 
 private let liveCasterAppGroup = "group.com.mobilelivecaster.app"
 private let liveCasterBroadcastExtensionId = "com.mobilelivecaster.app.BroadcastUpload"
@@ -11,6 +12,8 @@ private let broadcastRuntimeStateKey = "MobileLiveCaster.broadcastRuntimeState.v
 private let broadcastRuntimeStateStaleMillis: Double = 10_000
 private let broadcastCredentialLifetimeMillis: Double = 10 * 60 * 1000
 private let broadcastStopAcknowledgementTimeoutMillis: Double = 12_000
+private let liveCasterMemoryCriticalThresholdBytes: UInt64 = 64 * 1_024 * 1_024
+private let liveCasterMemoryWarningThresholdBytes: UInt64 = 128 * 1_024 * 1_024
 
 enum LiveCasterStatus: String {
     case idle
@@ -1501,6 +1504,17 @@ final class LiveCasterNative: RCTEventEmitter {
             @unknown default:
                 normalizedThermalState = "unknown"
             }
+            let availableMemoryBytes = UInt64(os_proc_available_memory())
+            let memoryPressureState: String
+            if availableMemoryBytes == 0 {
+                memoryPressureState = "unknown"
+            } else if availableMemoryBytes <= liveCasterMemoryCriticalThresholdBytes {
+                memoryPressureState = "critical"
+            } else if availableMemoryBytes <= liveCasterMemoryWarningThresholdBytes {
+                memoryPressureState = "warning"
+            } else {
+                memoryPressureState = "normal"
+            }
 
             let device = UIDevice.current
             if !device.isBatteryMonitoringEnabled {
@@ -1525,6 +1539,9 @@ final class LiveCasterNative: RCTEventEmitter {
             return [
                 "thermalState": normalizedThermalState,
                 "thermalStatusCode": thermalState.rawValue,
+                "memoryPressureState": memoryPressureState,
+                "availableMemoryBytes": availableMemoryBytes,
+                "memoryThresholdBytes": liveCasterMemoryWarningThresholdBytes,
                 "batteryLevelPercent": batteryLevelPercent,
                 "charging": charging,
                 "lowPowerMode": processInfo.isLowPowerModeEnabled,
@@ -1553,6 +1570,13 @@ final class LiveCasterNative: RCTEventEmitter {
             let thermalState = device["thermalState"] as? String,
             ["unknown", "nominal", "fair", "serious", "critical"].contains(thermalState),
             device["thermalStatusCode"] is NSNumber,
+            let memoryPressureState = device["memoryPressureState"] as? String,
+            ["unknown", "normal", "warning", "critical"].contains(memoryPressureState),
+            let availableMemoryBytes = (device["availableMemoryBytes"] as? NSNumber)?.doubleValue,
+            availableMemoryBytes.isFinite,
+            availableMemoryBytes >= 0,
+            let memoryThresholdBytes = (device["memoryThresholdBytes"] as? NSNumber)?.uint64Value,
+            memoryThresholdBytes == liveCasterMemoryWarningThresholdBytes,
             device["batteryLevelPercent"] is NSNumber,
             (device["charging"] is Bool || device["charging"] is NSNumber),
             (device["lowPowerMode"] is Bool || device["lowPowerMode"] is NSNumber),

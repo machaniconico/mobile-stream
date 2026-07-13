@@ -1540,7 +1540,13 @@ const formatNativeDeviceResources = (runtime: NativeRuntimeTelemetry | null): st
   const sampledAt = device.sampledAt > 0 && Number.isFinite(sampledDate.getTime())
     ? sampledDate.toISOString()
     : "unknown";
-  return `thermal ${device.thermalState} (${device.thermalStatusCode}) / battery ${battery} / charging ${device.charging ? "yes" : "no"} / source ${device.powerSource} / low power ${device.lowPowerMode ? "yes" : "no"} / sampled ${sampledAt}`;
+  const availableMemory = device.availableMemoryBytes >= 0
+    ? `${Math.round(device.availableMemoryBytes / (1024 * 1024))} MiB`
+    : "unknown";
+  const memoryThreshold = device.memoryThresholdBytes >= 0
+    ? `${Math.round(device.memoryThresholdBytes / (1024 * 1024))} MiB`
+    : "unknown";
+  return `thermal ${device.thermalState} (${device.thermalStatusCode}) / memory ${device.memoryPressureState} (${availableMemory} available, ${memoryThreshold} threshold) / battery ${battery} / charging ${device.charging ? "yes" : "no"} / source ${device.powerSource} / low power ${device.lowPowerMode ? "yes" : "no"} / sampled ${sampledAt}`;
 };
 
 const formatAdvisorTarget = (target: StreamQualityAdvisorRecommendation["currentTarget"]): string =>

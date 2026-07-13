@@ -14,7 +14,8 @@ internal data class NativeAdaptiveBitrateSample(
     val useMeasuredBitrate: Boolean,
     val droppedVideoFrames: Long,
     val cumulativeReconnectCount: Int,
-    val thermalState: String = "unknown"
+    val thermalState: String = "unknown",
+    val memoryPressureState: String = "unknown"
 )
 
 internal data class NativeAdaptiveBitrateDecision(
@@ -116,16 +117,26 @@ internal class NativeAdaptiveBitrateController {
         controllerState = "idle"
     }
 
-    fun requestBaselineChange(baselineKbps: Int, thermalState: String = "unknown"): Int {
+    fun requestBaselineChange(
+        baselineKbps: Int,
+        thermalState: String = "unknown",
+        memoryPressureState: String = "unknown"
+    ): Int {
         val target = normalizeTarget(baselineKbps)
         val normalizedThermalState = thermalState.trim().lowercase()
+        val normalizedMemoryPressureState = memoryPressureState.trim().lowercase()
+        val resourceCritical = normalizedThermalState == "critical" || normalizedMemoryPressureState == "critical"
+        val resourceElevated = resourceCritical ||
+            normalizedThermalState == "fair" ||
+            normalizedThermalState == "serious" ||
+            normalizedMemoryPressureState == "warning"
         val currentTarget = listOfNotNull(
             effectiveTargetKbps.takeIf { it > 0 },
             pendingTargetKbps.takeIf { it > 0 }
         ).minOrNull() ?: target
-        pendingTargetKbps = when (normalizedThermalState) {
-            "critical" -> minOf(floorForBaseline(target), currentTarget)
-            "fair", "serious" -> minOf(target, currentTarget)
+        pendingTargetKbps = when {
+            resourceCritical -> minOf(floorForBaseline(target), currentTarget)
+            resourceElevated -> minOf(target, currentTarget)
             else -> target
         }
         pendingBaselineTargetKbps = target
@@ -194,15 +205,20 @@ internal class NativeAdaptiveBitrateController {
         val droppedIncrease = (droppedVideoFrames - lastDroppedVideoFrames).coerceAtLeast(0L)
         val reconnectIncrease = (sample.cumulativeReconnectCount - cumulativeReconnectCount).coerceAtLeast(0)
         val thermalState = sample.thermalState.trim().lowercase()
+        val memoryPressureState = sample.memoryPressureState.trim().lowercase()
         val thermalCritical = thermalState == "critical"
         val thermalSerious = thermalState == "serious"
-        val thermalRecoveryBlocked = thermalState == "fair" || thermalSerious || thermalCritical
-        val thermalFloorTargetKbps = floorForBaseline(pendingBaselineTargetKbps ?: baselineTargetKbps)
-        val thermalSafetyTargetKbps = listOfNotNull(
-            thermalFloorTargetKbps,
+        val memoryCritical = memoryPressureState == "critical"
+        val memoryWarning = memoryPressureState == "warning"
+        val resourceCritical = thermalCritical || memoryCritical
+        val resourceSerious = thermalSerious || memoryWarning
+        val resourceRecoveryBlocked = thermalState == "fair" || resourceSerious || resourceCritical
+        val safetyFloorTargetKbps = floorForBaseline(pendingBaselineTargetKbps ?: baselineTargetKbps)
+        val resourceSafetyTargetKbps = listOfNotNull(
+            safetyFloorTargetKbps,
             effectiveTargetKbps.takeIf { it > 0 },
             pendingTargetKbps.takeIf { it > 0 }
-        ).minOrNull() ?: thermalFloorTargetKbps
+        ).minOrNull() ?: safetyFloorTargetKbps
         if (reconnectIncrease > 0) {
             reconnectPressurePending = true
         }
@@ -221,13 +237,13 @@ internal class NativeAdaptiveBitrateController {
             recoveryEligibleElapsedMs = nowElapsedMs + RECOVERY_AFTER_REPUBLISH_MS
             clearWindows()
             controllerState = "startup"
-            if (!thermalCritical) return null
+            if (!resourceCritical) return null
         }
 
-        if (thermalCritical && pendingTargetKbps > 0 && pendingTargetKbps != thermalSafetyTargetKbps) {
+        if (resourceCritical && pendingTargetKbps > 0 && pendingTargetKbps != resourceSafetyTargetKbps) {
             return decide(
                 "reduce",
-                thermalSafetyTargetKbps,
+                resourceSafetyTargetKbps,
                 pressureReason(sample, 0.0, 1.0, 0, 0),
                 nowElapsedMs,
                 nowWallMs,
@@ -235,7 +251,7 @@ internal class NativeAdaptiveBitrateController {
             )
         }
 
-        if ((nowElapsedMs - publishedAtElapsedMs < STARTUP_GRACE_MS && !thermalCritical) || pendingTargetKbps > 0) {
+        if ((nowElapsedMs - publishedAtElapsedMs < STARTUP_GRACE_MS && !resourceCritical) || pendingTargetKbps > 0) {
             clearWindows()
             controllerState = if (pendingTargetKbps > 0) "cooldown" else "startup"
             return null
@@ -248,9 +264,9 @@ internal class NativeAdaptiveBitrateController {
             1.0
         }
         val reconnectPressure = reconnectPressurePending
-        val pressured = thermalSerious || thermalCritical || sample.congested || queueRatio >= 0.5 ||
+        val pressured = resourceSerious || resourceCritical || sample.congested || queueRatio >= 0.5 ||
             measuredRatio < 0.65 || droppedIncrease > 0 || reconnectPressure
-        val critical = thermalSerious || thermalCritical || queueRatio >= 0.8 || measuredRatio < 0.4 ||
+        val critical = resourceSerious || resourceCritical || queueRatio >= 0.8 || measuredRatio < 0.4 ||
             droppedIncrease >= 3 || reconnectPressure
 
         if (pressured) {
@@ -258,12 +274,12 @@ internal class NativeAdaptiveBitrateController {
             criticalPressureSampleCount = if (critical) criticalPressureSampleCount + 1 else 0
             healthySampleCount = 0
             controllerState = "pressure"
-            val holdReady = thermalCritical || pressureSampleCount >= PRESSURE_SAMPLES ||
+            val holdReady = resourceCritical || pressureSampleCount >= PRESSURE_SAMPLES ||
                 criticalPressureSampleCount >= CRITICAL_PRESSURE_SAMPLES
-            val cooldownReady = thermalCritical || nowElapsedMs >= cooldownUntilElapsedMs
-            val minimumTargetKbps = if (thermalCritical) thermalFloorTargetKbps else floorTargetKbps
+            val cooldownReady = resourceCritical || nowElapsedMs >= cooldownUntilElapsedMs
+            val minimumTargetKbps = if (resourceCritical) safetyFloorTargetKbps else floorTargetKbps
             if (holdReady && cooldownReady && effectiveTargetKbps > minimumTargetKbps) {
-                val target = if (thermalCritical) {
+                val target = if (resourceCritical) {
                     minimumTargetKbps
                 } else {
                     maxOf(minimumTargetKbps, roundToHundred(effectiveTargetKbps * 0.8))
@@ -275,7 +291,7 @@ internal class NativeAdaptiveBitrateController {
                         pressureReason(sample, queueRatio, measuredRatio, droppedIncrease, if (reconnectPressure) 1 else 0),
                         nowElapsedMs,
                         nowWallMs,
-                        preservePendingBaseline = thermalCritical
+                        preservePendingBaseline = resourceCritical
                     )
                 }
             }
@@ -289,7 +305,7 @@ internal class NativeAdaptiveBitrateController {
         val measuredHealthy = !sample.useMeasuredBitrate ||
             (sample.measuredBitrateKbps > 0 && measuredRatio >= 0.85)
         val healthy = effectiveTargetKbps < baselineTargetKbps && queueRatio <= 0.1 && measuredHealthy &&
-            !thermalRecoveryBlocked
+            !resourceRecoveryBlocked
         if (!healthy) {
             healthySampleCount = 0
             controllerState = if (effectiveTargetKbps < baselineTargetKbps) "reduced" else "observing"
@@ -391,8 +407,12 @@ internal class NativeAdaptiveBitrateController {
         droppedIncrease: Long,
         reconnectIncrease: Int
     ): String = when {
+        sample.memoryPressureState.trim().equals("critical", ignoreCase = true) ->
+            "The operating system reported critical memory pressure; bitrate was reduced to the safety floor."
         sample.thermalState.trim().equals("critical", ignoreCase = true) ->
             "The device reported critical thermal pressure; bitrate was reduced to the safety floor."
+        sample.memoryPressureState.trim().equals("warning", ignoreCase = true) ->
+            "The operating system reported sustained memory pressure."
         sample.thermalState.trim().equals("serious", ignoreCase = true) ->
             "The device reported sustained serious thermal pressure."
         reconnectIncrease > 0 -> "A transport reconnect occurred during the active session."

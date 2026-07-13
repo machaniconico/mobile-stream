@@ -33,6 +33,9 @@ const device = (update: Partial<NativeRuntimeDevice> = {}): NativeRuntimeDevice 
   charging: false,
   lowPowerMode: false,
   powerSource: "battery",
+  memoryPressureState: "normal",
+  availableMemoryBytes: 512 * 1024 * 1024,
+  memoryThresholdBytes: 128 * 1024 * 1024,
   sampledAt: Date.parse("2026-07-13T00:00:00.000Z"),
   ...update
 });
@@ -146,6 +149,32 @@ describe("stream quality incidents", () => {
     );
 
     expect(incidents).toContainEqual(expect.objectContaining({ code: "thermal-serious", severity: "fail" }));
+  });
+
+  it("reports warning and critical operating-system memory pressure", () => {
+    const warning = createStreamQualityIncidents(
+      snapshot(
+        "live",
+        { bitrateKbps: quality.videoBitrateKbps, fps: quality.fps, elapsedSeconds: 30 },
+        device({ memoryPressureState: "warning", availableMemoryBytes: 96 * 1024 * 1024 })
+      ),
+      quality
+    );
+    const critical = createStreamQualityIncidents(
+      snapshot(
+        "live",
+        { bitrateKbps: quality.videoBitrateKbps, fps: quality.fps, elapsedSeconds: 30 },
+        device({ memoryPressureState: "critical", availableMemoryBytes: 48 * 1024 * 1024 })
+      ),
+      quality
+    );
+
+    expect(warning).toContainEqual(
+      expect.objectContaining({ code: "memory-warning", severity: "warn", message: expect.stringContaining("96 MiB") })
+    );
+    expect(critical).toContainEqual(
+      expect.objectContaining({ code: "memory-critical", severity: "fail", message: expect.stringContaining("48 MiB") })
+    );
   });
 
   it("fails closed for critical heat and an unplugged critical battery", () => {

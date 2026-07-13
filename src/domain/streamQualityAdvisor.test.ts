@@ -67,6 +67,9 @@ const device = (update: Partial<NativeRuntimeDevice> = {}): NativeRuntimeDevice 
   charging: false,
   lowPowerMode: false,
   powerSource: "battery",
+  memoryPressureState: "normal",
+  availableMemoryBytes: 512 * 1024 * 1024,
+  memoryThresholdBytes: 128 * 1024 * 1024,
   sampledAt: Date.parse("2026-07-13T00:00:00.000Z"),
   ...update
 });
@@ -142,6 +145,19 @@ describe("stream quality advisor", () => {
       expect(recommendation.severity).toBe("fail");
       expect(recommendation.summary).toBe("Stop recommended for device safety.");
     }
+  });
+
+  it("recommends stopping before critical memory pressure terminates the publisher", () => {
+    const recommendation = advisorFor(
+      quality("quality-motion"),
+      {},
+      device({ memoryPressureState: "critical", availableMemoryBytes: 48 * 1024 * 1024 })
+    );
+
+    expect(recommendation.action).toBe("stop");
+    expect(recommendation.severity).toBe("fail");
+    expect(recommendation.summary).toBe("Stop recommended for critical memory pressure.");
+    expect(recommendation.suggestedTarget?.fps).toBe(30);
   });
 
   it("applies an existing suggested quality profile to the studio profile", () => {

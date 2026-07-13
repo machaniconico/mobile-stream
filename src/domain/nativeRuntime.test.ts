@@ -153,6 +153,9 @@ describe("native runtime device telemetry", () => {
         charging: true,
         lowPowerMode: true,
         powerSource: "wireless",
+        memoryPressureState: "warning",
+        availableMemoryBytes: 134_217_728.4,
+        memoryThresholdBytes: 67_108_864.6,
         sampledAt: 1_784_000_000_000.4
       })
     ).toEqual({
@@ -162,6 +165,9 @@ describe("native runtime device telemetry", () => {
       charging: true,
       lowPowerMode: true,
       powerSource: "wireless",
+      memoryPressureState: "warning",
+      availableMemoryBytes: 134_217_728,
+      memoryThresholdBytes: 67_108_865,
       sampledAt: 1_784_000_000_000
     });
   });
@@ -175,6 +181,9 @@ describe("native runtime device telemetry", () => {
         charging: false,
         lowPowerMode: false,
         powerSource: "solar" as "battery",
+        memoryPressureState: "elevated" as "normal",
+        availableMemoryBytes: Number.NaN,
+        memoryThresholdBytes: -20,
         sampledAt: -20
       })
     ).toEqual({
@@ -184,6 +193,9 @@ describe("native runtime device telemetry", () => {
       charging: false,
       lowPowerMode: false,
       powerSource: "unknown",
+      memoryPressureState: "unknown",
+      availableMemoryBytes: -1,
+      memoryThresholdBytes: -1,
       sampledAt: 0
     });
     expect(normalizeNativeRuntimeDevice(undefined)).toBeUndefined();

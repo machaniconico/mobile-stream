@@ -346,9 +346,11 @@ class MediaProjectionService : Service(), ConnectChecker {
         var controllerSnapshot = adaptiveBitrateController.snapshot(SystemClock.elapsedRealtime())
         val baselineChanged = controllerSnapshot.baselineTargetKbps != requestedTargetKbps
         if (baselineChanged) {
+            val deviceSnapshot = deviceResourceMonitor.snapshot()
             adaptiveBitrateController.requestBaselineChange(
-                requestedTargetKbps,
-                deviceResourceMonitor.snapshot().thermalState
+                baselineKbps = requestedTargetKbps,
+                thermalState = deviceSnapshot.thermalState,
+                memoryPressureState = deviceSnapshot.memoryPressureState
             )
             controllerSnapshot = adaptiveBitrateController.snapshot(SystemClock.elapsedRealtime())
         }
@@ -533,7 +535,8 @@ class MediaProjectionService : Service(), ConnectChecker {
                     ?: client?.getDroppedVideoFrames()
                     ?: 0L,
                 cumulativeReconnectCount = cumulativeReconnectCount,
-                thermalState = deviceSnapshot.thermalState
+                thermalState = deviceSnapshot.thermalState,
+                memoryPressureState = deviceSnapshot.memoryPressureState
             )
         ) ?: return
 

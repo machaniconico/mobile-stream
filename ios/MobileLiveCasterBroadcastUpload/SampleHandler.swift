@@ -19,6 +19,9 @@ private let broadcastRuntimeStateKey = "MobileLiveCaster.broadcastRuntimeState.v
 struct BroadcastDeviceResourceSnapshot {
     let thermalState: String
     let thermalStatusCode: Int
+    let memoryPressureState: String
+    let availableMemoryBytes: UInt64
+    let memoryThresholdBytes: UInt64
     let batteryLevelPercent: Int
     let charging: Bool
     let lowPowerMode: Bool
@@ -29,6 +32,9 @@ struct BroadcastDeviceResourceSnapshot {
         [
             "thermalState": thermalState,
             "thermalStatusCode": thermalStatusCode,
+            "memoryPressureState": memoryPressureState,
+            "availableMemoryBytes": availableMemoryBytes,
+            "memoryThresholdBytes": memoryThresholdBytes,
             "batteryLevelPercent": batteryLevelPercent,
             "charging": charging,
             "lowPowerMode": lowPowerMode,
@@ -41,15 +47,45 @@ struct BroadcastDeviceResourceSnapshot {
 final class BroadcastDeviceResourceMonitor {
     static let shared = BroadcastDeviceResourceMonitor()
 
+    private enum MemoryPressureState: String {
+        case unknown
+        case normal
+        case warning
+        case critical
+
+        private var severity: Int {
+            switch self {
+            case .unknown:
+                return -1
+            case .normal:
+                return 0
+            case .warning:
+                return 1
+            case .critical:
+                return 2
+            }
+        }
+
+        static func worse(_ first: MemoryPressureState, _ second: MemoryPressureState) -> MemoryPressureState {
+            first.severity >= second.severity ? first : second
+        }
+    }
+
     private struct BatterySnapshot {
         let levelPercent: Int
         let charging: Bool
         let powerSource: String
     }
 
+    private static let memoryCriticalThresholdBytes: UInt64 = 64 * 1_024 * 1_024
+    private static let memoryWarningThresholdBytes: UInt64 = 128 * 1_024 * 1_024
     private let batteryLock = NSLock()
     private var batterySnapshot = BatterySnapshot(levelPercent: -1, charging: false, powerSource: "unknown")
     private var batteryObserverTokens: [NSObjectProtocol] = []
+    private let memoryPressureLock = NSLock()
+    private let memoryPressureQueue = DispatchQueue(label: "MobileLiveCaster.broadcast.memory-pressure")
+    private var memoryPressureEventState = MemoryPressureState.unknown
+    private var memoryPressureSource: DispatchSourceMemoryPressure?
     private var started = false
 
     private init() {}
@@ -83,10 +119,14 @@ final class BroadcastDeviceResourceMonitor {
             normalizedThermalState = "unknown"
         }
         let battery = batteryLock.performLocked { batterySnapshot }
+        let memory = memoryPressureSnapshot()
 
         return BroadcastDeviceResourceSnapshot(
             thermalState: normalizedThermalState,
             thermalStatusCode: thermalState.rawValue,
+            memoryPressureState: memory.state.rawValue,
+            availableMemoryBytes: memory.availableBytes,
+            memoryThresholdBytes: Self.memoryWarningThresholdBytes,
             batteryLevelPercent: battery.levelPercent,
             charging: battery.charging,
             lowPowerMode: processInfo.isLowPowerModeEnabled,
@@ -100,6 +140,7 @@ final class BroadcastDeviceResourceMonitor {
             return
         }
         started = true
+        startMemoryPressureMonitoring()
         UIDevice.current.isBatteryMonitoringEnabled = true
         refreshBatteryOnMainQueue()
         let center = NotificationCenter.default
@@ -125,6 +166,7 @@ final class BroadcastDeviceResourceMonitor {
         guard started else {
             return
         }
+        stopMemoryPressureMonitoring()
         batteryObserverTokens.forEach { NotificationCenter.default.removeObserver($0) }
         batteryObserverTokens.removeAll()
         UIDevice.current.isBatteryMonitoringEnabled = false
@@ -146,6 +188,62 @@ final class BroadcastDeviceResourceMonitor {
         batteryLock.performLocked {
             batterySnapshot = next
         }
+    }
+
+    private func startMemoryPressureMonitoring() {
+        let source = DispatchSource.makeMemoryPressureSource(
+            eventMask: [.normal, .warning, .critical],
+            queue: memoryPressureQueue
+        )
+        source.setEventHandler { [weak self] in
+            self?.recordMemoryPressureEvent()
+        }
+        memoryPressureLock.performLocked {
+            memoryPressureEventState = .unknown
+            memoryPressureSource = source
+        }
+        source.activate()
+    }
+
+    private func stopMemoryPressureMonitoring() {
+        let source = memoryPressureLock.performLocked {
+            let source = memoryPressureSource
+            memoryPressureSource = nil
+            memoryPressureEventState = .unknown
+            return source
+        }
+        source?.cancel()
+    }
+
+    private func recordMemoryPressureEvent() {
+        memoryPressureLock.performLocked {
+            guard let event = memoryPressureSource?.data else {
+                return
+            }
+            if event.contains(.critical) {
+                memoryPressureEventState = .critical
+            } else if event.contains(.warning) {
+                memoryPressureEventState = .warning
+            } else if event.contains(.normal) {
+                memoryPressureEventState = .normal
+            }
+        }
+    }
+
+    private func memoryPressureSnapshot() -> (state: MemoryPressureState, availableBytes: UInt64) {
+        let availableMemoryBytes = UInt64(os_proc_available_memory())
+        let availableMemoryState: MemoryPressureState
+        if availableMemoryBytes == 0 {
+            availableMemoryState = .unknown
+        } else if availableMemoryBytes <= Self.memoryCriticalThresholdBytes {
+            availableMemoryState = .critical
+        } else if availableMemoryBytes <= Self.memoryWarningThresholdBytes {
+            availableMemoryState = .warning
+        } else {
+            availableMemoryState = .normal
+        }
+        let eventState = memoryPressureLock.performLocked { memoryPressureEventState }
+        return (MemoryPressureState.worse(eventState, availableMemoryState), availableMemoryBytes)
     }
 }
 
@@ -6156,7 +6254,8 @@ final class BroadcastUploadPipeline {
             useMeasuredBitrate: false,
             droppedVideoFrames: publisherStats.droppedVideoFrames,
             cumulativeReconnectCount: publisherStats.cumulativeReconnectCount,
-            thermalState: deviceResourceSnapshot.thermalState
+            thermalState: deviceResourceSnapshot.thermalState,
+            memoryPressureState: deviceResourceSnapshot.memoryPressureState
         )
         let decision = adaptiveBitrateLock.performLocked {
             adaptiveBitrateController.evaluate(sample)
@@ -6199,9 +6298,13 @@ final class BroadcastUploadPipeline {
     ) throws -> Int {
         videoBitrateUpdateLock.lock()
         defer { videoBitrateUpdateLock.unlock() }
-        let thermalState = BroadcastDeviceResourceMonitor.shared.snapshot().thermalState
+        let deviceResourceSnapshot = BroadcastDeviceResourceMonitor.shared.snapshot()
         let effectiveTargetKbps = adaptiveBitrateLock.performLocked {
-            adaptiveBitrateController.requestBaselineChange(targetKbps, thermalState: thermalState)
+            adaptiveBitrateController.requestBaselineChange(
+                targetKbps,
+                thermalState: deviceResourceSnapshot.thermalState,
+                memoryPressureState: deviceResourceSnapshot.memoryPressureState
+            )
         }
         do {
             try videoEncoder.updateBitrate(targetKbps: effectiveTargetKbps)
@@ -6305,8 +6408,13 @@ final class BroadcastUploadPipeline {
         var appliedVideoBitrateKbps: Int?
         if videoBitrateChanged {
             guard let videoEncoder else {
+                let deviceResourceSnapshot = BroadcastDeviceResourceMonitor.shared.snapshot()
                 adaptiveBitrateLock.performLocked {
-                    adaptiveBitrateController.requestBaselineChange(nextConfiguration.videoBitrateKbps)
+                    adaptiveBitrateController.requestBaselineChange(
+                        nextConfiguration.videoBitrateKbps,
+                        thermalState: deviceResourceSnapshot.thermalState,
+                        memoryPressureState: deviceResourceSnapshot.memoryPressureState
+                    )
                     adaptiveBitrateController.recordFailure(
                         "Native encoder was unavailable for the manual bitrate target.",
                         nowWallMs: Date().timeIntervalSince1970 * 1_000

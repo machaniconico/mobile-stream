@@ -1228,6 +1228,9 @@ describe("stream diagnostics", () => {
           charging: false,
           lowPowerMode: false,
           powerSource: "battery",
+          memoryPressureState: "warning",
+          availableMemoryBytes: 96 * 1024 * 1024,
+          memoryThresholdBytes: 128 * 1024 * 1024,
           sampledAt: Date.parse("2026-07-13T00:00:00.000Z")
         }
       }
@@ -1241,10 +1244,13 @@ describe("stream diagnostics", () => {
     expect(diagnostics.qualityIncidents.incidents).toContainEqual(
       expect.objectContaining({ code: "thermal-serious", severity: "fail" })
     );
+    expect(diagnostics.qualityIncidents.incidents).toContainEqual(
+      expect.objectContaining({ code: "memory-warning", severity: "warn" })
+    );
     expect(diagnostics.qualityAdvisor.action).toBe("lower-quality");
     expect(diagnostics.qualityAdvisor.suggestedTarget?.profileId).toBe("quality-balanced");
     expect(formatStreamDiagnosticReport(createStreamDiagnosticReport(diagnostics))).toContain(
-      "Device resources: thermal serious (3) / battery 42% / charging no / source battery / low power no / sampled 2026-07-13T00:00:00.000Z"
+      "Device resources: thermal serious (3) / memory warning (96 MiB available, 128 MiB threshold) / battery 42% / charging no / source battery / low power no / sampled 2026-07-13T00:00:00.000Z"
     );
   });
 

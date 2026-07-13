@@ -12,6 +12,8 @@ export type StreamQualityIncidentCode =
   | "thermal-fair"
   | "thermal-serious"
   | "thermal-critical"
+  | "memory-warning"
+  | "memory-critical"
   | "battery-low"
   | "battery-critical"
   | "low-power-mode"
@@ -172,10 +174,40 @@ const createDeviceResourceIncidents = (
 
   return [
     createThermalIncident(device),
+    createMemoryIncident(device),
     createBatteryIncident(device),
     createLowPowerModeIncident(device)
   ].filter((incident): incident is StreamQualityIncident => Boolean(incident));
 };
+
+const createMemoryIncident = (device: NativeRuntimeDevice): StreamQualityIncident | null => {
+  const available = device.availableMemoryBytes >= 0
+    ? ` Approximately ${formatMemoryMiB(device.availableMemoryBytes)} MiB remains available.`
+    : "";
+  if (device.memoryPressureState === "critical") {
+    return {
+      code: "memory-critical",
+      severity: "fail",
+      label: "Memory critical",
+      message: `The operating system reports critical memory pressure.${available}`,
+      recommendation: "Stop the stream, close other apps, and restart with fewer scene sources before the broadcast process is terminated."
+    };
+  }
+
+  if (device.memoryPressureState === "warning") {
+    return {
+      code: "memory-warning",
+      severity: "warn",
+      label: "Memory pressure",
+      message: `The operating system reports elevated memory pressure.${available}`,
+      recommendation: "Close background apps and reduce scene complexity or quality before memory pressure becomes critical."
+    };
+  }
+
+  return null;
+};
+
+const formatMemoryMiB = (bytes: number): number => Math.max(0, Math.round(bytes / (1024 * 1024)));
 
 const createThermalIncident = (device: NativeRuntimeDevice): StreamQualityIncident | null => {
   if (device.thermalState === "critical") {

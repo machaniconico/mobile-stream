@@ -65,6 +65,9 @@ const device = (update: Partial<NativeRuntimeDevice> = {}): NativeRuntimeDevice 
   charging: false,
   lowPowerMode: false,
   powerSource: "battery",
+  memoryPressureState: "normal",
+  availableMemoryBytes: 512 * 1024 * 1024,
+  memoryThresholdBytes: 128 * 1024 * 1024,
   sampledAt: Date.parse("2026-07-13T00:00:00.000Z"),
   ...update
 });

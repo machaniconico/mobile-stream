@@ -4,6 +4,7 @@ export type NativeRuntimeCompositionStatus = "unknown" | "screen-only" | "applie
 export type NativeRuntimePlatform = "ios" | "android";
 export type NativeRuntimeThermalState = "unknown" | "nominal" | "fair" | "serious" | "critical";
 export type NativeRuntimePowerSource = "unknown" | "battery" | "wired" | "wireless";
+export type NativeRuntimeMemoryPressureState = "unknown" | "normal" | "warning" | "critical";
 
 export interface NativeRuntimeDevice {
   thermalState: NativeRuntimeThermalState;
@@ -12,6 +13,9 @@ export interface NativeRuntimeDevice {
   charging: boolean;
   lowPowerMode: boolean;
   powerSource: NativeRuntimePowerSource;
+  memoryPressureState: NativeRuntimeMemoryPressureState;
+  availableMemoryBytes: number;
+  memoryThresholdBytes: number;
   sampledAt: number;
 }
 
@@ -23,6 +27,12 @@ const nativeThermalStates = new Set<NativeRuntimeThermalState>([
   "critical"
 ]);
 const nativePowerSources = new Set<NativeRuntimePowerSource>(["unknown", "battery", "wired", "wireless"]);
+const nativeMemoryPressureStates = new Set<NativeRuntimeMemoryPressureState>([
+  "unknown",
+  "normal",
+  "warning",
+  "critical"
+]);
 
 export const normalizeNativeRuntimeDevice = (
   device: Partial<NativeRuntimeDevice> | null | undefined
@@ -44,12 +54,24 @@ export const normalizeNativeRuntimeDevice = (
     powerSource: nativePowerSources.has(device.powerSource as NativeRuntimePowerSource)
       ? (device.powerSource as NativeRuntimePowerSource)
       : "unknown",
+    memoryPressureState: nativeMemoryPressureStates.has(
+      device.memoryPressureState as NativeRuntimeMemoryPressureState
+    )
+      ? (device.memoryPressureState as NativeRuntimeMemoryPressureState)
+      : "unknown",
+    availableMemoryBytes: normalizeByteCount(device.availableMemoryBytes),
+    memoryThresholdBytes: normalizeByteCount(device.memoryThresholdBytes),
     sampledAt: Math.max(0, Math.round(normalizeFiniteNumber(device.sampledAt, 0)))
   };
 };
 
 const normalizeFiniteNumber = (value: unknown, fallback: number): number =>
   typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+const normalizeByteCount = (value: unknown): number => {
+  const normalized = normalizeFiniteNumber(value, -1);
+  return normalized < 0 ? -1 : Math.round(Math.min(Number.MAX_SAFE_INTEGER, normalized));
+};
 
 const productionVrmRendererBackendsByPlatform: Record<NativeRuntimePlatform, Set<string>> = {
   ios: new Set(["metal", "metal-scene-kit", "scene-kit"]),

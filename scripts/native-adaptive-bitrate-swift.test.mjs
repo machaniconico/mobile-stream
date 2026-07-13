@@ -44,13 +44,23 @@ describe("native adaptive bitrate Swift policy", () => {
     expect(swift).toContain("static let healthySamples = 30");
     expect(swift).toContain('let thermalCritical = thermalState == "critical"');
     expect(swift).toContain('let thermalSerious = thermalState == "serious"');
-    expect(swift).toContain("let thermalSafetyTargetKbps = [thermalFloorTargetKbps, effectiveTargetKbps, pendingTargetKbps]");
+    expect(swift).toContain('memoryPressureState: String = "unknown"');
+    expect(swift).toContain('let memoryCritical = memoryPressureState == "critical"');
+    expect(swift).toContain('let memoryWarning = memoryPressureState == "warning"');
+    expect(swift).toContain("let resourceSafetyTargetKbps = [safetyFloorTargetKbps, effectiveTargetKbps, pendingTargetKbps]");
+    expect(swift).toContain("The operating system reported critical memory pressure; bitrate was reduced to the safety floor.");
+    expect(swift).toContain("The operating system reported sustained memory pressure.");
     expect(kotlin).toContain("const val STARTUP_GRACE_MS = 10_000L");
     expect(kotlin).toContain("const val PRESSURE_SAMPLES = 3");
     expect(kotlin).toContain("const val HEALTHY_SAMPLES = 30");
     expect(kotlin).toContain('val thermalCritical = thermalState == "critical"');
     expect(kotlin).toContain('val thermalSerious = thermalState == "serious"');
-    expect(kotlin).toContain("val thermalSafetyTargetKbps = listOfNotNull(");
+    expect(kotlin).toContain('val memoryPressureState: String = "unknown"');
+    expect(kotlin).toContain('val memoryCritical = memoryPressureState == "critical"');
+    expect(kotlin).toContain('val memoryWarning = memoryPressureState == "warning"');
+    expect(kotlin).toContain("val resourceSafetyTargetKbps = listOfNotNull(");
+    expect(kotlin).toContain("The operating system reported critical memory pressure; bitrate was reduced to the safety floor.");
+    expect(kotlin).toContain("The operating system reported sustained memory pressure.");
   });
 
   it("keeps native ownership wired through both publishers, telemetry, and the commercial gate", () => {
@@ -80,6 +90,7 @@ describe("native adaptive bitrate Swift policy", () => {
     expect(android).toContain("activeStream.setVideoBitrateOnFly(effectiveProfile.videoBitrate)");
     expect(android).toContain("profile.copy(videoBitrate = effectiveTargetKbps * 1_000)");
     expect(android).toContain("thermalState = deviceSnapshot.thermalState");
+    expect(android).toContain("memoryPressureState = deviceSnapshot.memoryPressureState");
     expect(android).toContain("isNativeAdaptiveBitrateActive(");
     expect(directAndroid).toContain("publisherDroppedVideoFrames = publisherSnapshot.droppedVideoFrames");
 
@@ -87,13 +98,14 @@ describe("native adaptive bitrate Swift policy", () => {
     expect(ios).toContain("adaptiveBitrateController.evaluate(sample)");
     expect(ios).toContain("useMeasuredBitrate: false");
     expect(ios).toContain("ProcessInfo.processInfo.systemUptime * 1_000");
-    expect(ios).toContain("adaptiveBitrateController.requestBaselineChange(targetKbps, thermalState: thermalState)");
+    expect(ios).toContain("adaptiveBitrateController.requestBaselineChange(");
     expect(ios).toContain("private let videoBitrateUpdateLock = NSLock()");
     expect(ios).toContain("try videoEncoder.updateBitrate(targetKbps: decision.targetKbps)");
     expect(ios).toContain("try videoEncoder.updateBitrate(targetKbps: effectiveTargetKbps)");
     expect(ios).toContain("cumulativeReconnectCount += 1");
     expect(ios).toContain("bitrateAdaptationSnapshot: adaptiveBitrateSnapshot()");
     expect(ios).toContain("thermalState: deviceResourceSnapshot.thermalState");
+    expect(ios).toContain("memoryPressureState: deviceResourceSnapshot.memoryPressureState");
 
     expect(mobileApp).toContain("deferNativeOwnedBitrateDecision(");
     expect(commercialGate).toContain('run?.nativeRuntimeControlOwner === "native"');
@@ -114,7 +126,8 @@ func sample(
     useMeasuredBitrate: Bool = true,
     reconnectCount: Int? = nil,
     wallMs: Double? = nil,
-    thermalState: String = "nominal"
+    thermalState: String = "nominal",
+    memoryPressureState: String = "normal"
 ) -> NativeAdaptiveBitrateSample {
     NativeAdaptiveBitrateSample(
         nowElapsedMs: Double(second * 1000),
@@ -128,7 +141,8 @@ func sample(
         useMeasuredBitrate: useMeasuredBitrate,
         droppedVideoFrames: 0,
         cumulativeReconnectCount: reconnectCount ?? generation - 1,
-        thermalState: thermalState
+        thermalState: thermalState,
+        memoryPressureState: memoryPressureState
     )
 }
 
@@ -190,6 +204,115 @@ criticalThermalController.reset(baselineKbps: 3500)
 let thermalEmergency = criticalThermalController.evaluate(sample(0, generation: 1, thermalState: "critical"))
 precondition(thermalEmergency?.targetKbps == 1200)
 precondition(thermalEmergency?.reason == "The device reported critical thermal pressure; bitrate was reduced to the safety floor.")
+
+var warningMemoryController = NativeAdaptiveBitrateController()
+warningMemoryController.reset(baselineKbps: 3500)
+precondition(warningMemoryController.evaluate(sample(0, generation: 1)) == nil)
+precondition(warningMemoryController.evaluate(sample(10, memoryPressureState: "  WaRnInG ")) == nil)
+let warningMemoryReduction = warningMemoryController.evaluate(sample(11, memoryPressureState: "\\nWARNING\\t"))
+precondition(warningMemoryReduction?.type == "reduce")
+precondition(warningMemoryReduction?.targetKbps == 2800)
+precondition(warningMemoryReduction?.reason == "The operating system reported sustained memory pressure.")
+warningMemoryController.recordApplied(2800)
+let memoryCooldownEmergency = warningMemoryController.evaluate(sample(12, memoryPressureState: "critical"))
+precondition(memoryCooldownEmergency?.targetKbps == 1200)
+precondition(memoryCooldownEmergency?.reason == "The operating system reported critical memory pressure; bitrate was reduced to the safety floor.")
+
+var criticalMemoryController = NativeAdaptiveBitrateController()
+criticalMemoryController.reset(baselineKbps: 3500)
+let memoryEmergency = criticalMemoryController.evaluate(
+    sample(0, generation: 1, memoryPressureState: " \\nCrItIcAl\\t")
+)
+precondition(memoryEmergency?.type == "reduce")
+precondition(memoryEmergency?.targetKbps == 1200)
+precondition(memoryEmergency?.reason == "The operating system reported critical memory pressure; bitrate was reduced to the safety floor.")
+criticalMemoryController.recordApplied(1200)
+for second in 1...25 {
+    precondition(criticalMemoryController.evaluate(sample(second, bitrate: 2700, memoryPressureState: "warning")) == nil)
+}
+for second in 26...50 {
+    precondition(criticalMemoryController.evaluate(sample(second, bitrate: 2700, memoryPressureState: "critical")) == nil)
+}
+precondition(criticalMemoryController.snapshot(nowElapsedMs: 50000).effectiveTargetKbps == 1200)
+var memoryRecovery: NativeAdaptiveBitrateDecision?
+for second in 51...80 {
+    memoryRecovery = criticalMemoryController.evaluate(
+        sample(second, bitrate: 2700, memoryPressureState: "normal")
+    ) ?? memoryRecovery
+}
+precondition(memoryRecovery?.type == "restore")
+precondition(memoryRecovery?.targetKbps == 1300)
+
+var criticalResourcePriorityController = NativeAdaptiveBitrateController()
+criticalResourcePriorityController.reset(baselineKbps: 3500)
+let criticalResourcePriority = criticalResourcePriorityController.evaluate(
+    sample(0, generation: 1, thermalState: "critical", memoryPressureState: "critical")
+)
+precondition(criticalResourcePriority?.reason == "The operating system reported critical memory pressure; bitrate was reduced to the safety floor.")
+
+var severityPriorityController = NativeAdaptiveBitrateController()
+severityPriorityController.reset(baselineKbps: 3500)
+let severityPriority = severityPriorityController.evaluate(
+    sample(0, generation: 1, thermalState: "critical", memoryPressureState: "warning")
+)
+precondition(severityPriority?.reason == "The device reported critical thermal pressure; bitrate was reduced to the safety floor.")
+
+var elevatedResourcePriorityController = NativeAdaptiveBitrateController()
+elevatedResourcePriorityController.reset(baselineKbps: 3500)
+precondition(elevatedResourcePriorityController.evaluate(sample(0, generation: 1)) == nil)
+precondition(elevatedResourcePriorityController.evaluate(
+    sample(10, thermalState: "serious", memoryPressureState: "warning")
+) == nil)
+let elevatedResourcePriority = elevatedResourcePriorityController.evaluate(
+    sample(11, thermalState: "serious", memoryPressureState: "warning")
+)
+precondition(elevatedResourcePriority?.reason == "The operating system reported sustained memory pressure.")
+
+var pendingMemoryController = NativeAdaptiveBitrateController()
+pendingMemoryController.reset(baselineKbps: 3500)
+precondition(pendingMemoryController.requestBaselineChange(2500) == 2500)
+let supersedingMemoryEmergency = pendingMemoryController.evaluate(
+    sample(0, generation: 1, reconnectCount: 0, memoryPressureState: "critical")
+)
+precondition(supersedingMemoryEmergency?.targetKbps == 900)
+pendingMemoryController.recordApplied(2500)
+let staleMemoryAckSnapshot = pendingMemoryController.snapshot(nowElapsedMs: 1000)
+precondition(staleMemoryAckSnapshot.baselineTargetKbps == 3500)
+precondition(staleMemoryAckSnapshot.effectiveTargetKbps == 3500)
+precondition(staleMemoryAckSnapshot.pendingTargetKbps == 900)
+precondition(staleMemoryAckSnapshot.publishGeneration == 1)
+precondition(pendingMemoryController.evaluate(
+    sample(1, generation: 2, reconnectCount: 0, memoryPressureState: "critical")
+) == nil)
+precondition(pendingMemoryController.snapshot(nowElapsedMs: 1000).publishGeneration == 2)
+precondition(pendingMemoryController.snapshot(nowElapsedMs: 1000).pendingTargetKbps == 900)
+pendingMemoryController.recordApplied(900)
+let confirmedMemorySnapshot = pendingMemoryController.snapshot(nowElapsedMs: 2000)
+precondition(confirmedMemorySnapshot.baselineTargetKbps == 2500)
+precondition(confirmedMemorySnapshot.effectiveTargetKbps == 900)
+precondition(confirmedMemorySnapshot.pendingTargetKbps == 0)
+
+var manualMemoryController = NativeAdaptiveBitrateController()
+manualMemoryController.reset(baselineKbps: 3500)
+precondition(manualMemoryController.evaluate(
+    sample(0, generation: 1, memoryPressureState: "critical")
+)?.targetKbps == 1200)
+manualMemoryController.recordApplied(1200)
+precondition(manualMemoryController.requestBaselineChange(
+    6000,
+    memoryPressureState: " warning "
+) == 1200)
+precondition(manualMemoryController.snapshot(nowElapsedMs: 1000).pendingTargetKbps == 1200)
+precondition(manualMemoryController.requestBaselineChange(
+    7000,
+    memoryPressureState: " CRITICAL "
+) == 1200)
+precondition(manualMemoryController.snapshot(nowElapsedMs: 1000).pendingTargetKbps == 1200)
+manualMemoryController.recordApplied(1200)
+let manualMemorySnapshot = manualMemoryController.snapshot(nowElapsedMs: 2000)
+precondition(manualMemorySnapshot.baselineTargetKbps == 7000)
+precondition(manualMemorySnapshot.effectiveTargetKbps == 1200)
+precondition(manualMemorySnapshot.pendingTargetKbps == 0)
 
 var pendingThermalController = NativeAdaptiveBitrateController()
 pendingThermalController.reset(baselineKbps: 3500)
